@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../config/api';
 
 interface PromptLog {
   timestamp: string;
@@ -22,7 +23,7 @@ export const PromptExplorer: React.FC<{ sessionId: string }> = ({ sessionId }) =
 
   const fetchPromptLogs = async () => {
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/prompts`);
+      const response = await fetch(apiUrl(`/api/sessions/${sessionId}/prompts`));
       if (response.ok) {
         const data = await response.json();
         setPrompts(data);

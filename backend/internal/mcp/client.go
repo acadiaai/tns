@@ -20,7 +20,12 @@ type MCPClient struct {
 func NewMCPClientFromEnv() *MCPClient {
 	base := os.Getenv("MCP_URL")
 	if base == "" {
-		base = "http://localhost:8083/api/mcp"
+		// Use PORT environment variable if set (Cloud Run sets this)
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8083" // Default for local development
+		}
+		base = fmt.Sprintf("http://localhost:%s/api/mcp", port)
 	}
 	return &MCPClient{
 		baseURL:    base,

@@ -4,7 +4,15 @@
  */
 export function getWebSocketUrl(path: string): string {
   // If VITE_API_URL is set, derive ws/wss from it
-  const apiUrl = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
+  const apiUrl = import.meta.env.VITE_API_URL;
+
+  // Add logging to debug the issue
+  console.log('WebSocket URL generation:', {
+    apiUrl,
+    path,
+    metaEnv: import.meta.env
+  });
+
   if (apiUrl) {
     try {
       const base = new URL(apiUrl);
@@ -12,10 +20,22 @@ export function getWebSocketUrl(path: string): string {
       base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
       // Ensure we join path correctly
       base.pathname = path.startsWith('/') ? path : `/${path}`;
-      return base.toString();
-    } catch {
+      const wsUrl = base.toString();
+      console.log('Generated WebSocket URL:', wsUrl);
+      return wsUrl;
+    } catch (error) {
+      console.error('Failed to parse VITE_API_URL:', error);
       // fall through to local heuristic
     }
+  }
+
+  // For production, if VITE_API_URL isn't available, use a hardcoded backend URL
+  // This is a fallback for when environment variables aren't properly built in
+  if (window.location.hostname === 'tns-acadia-sh.web.app' ||
+      window.location.hostname === 'tns-acadia-sh.firebaseapp.com') {
+    const wsUrl = `wss://tns-backend-385615458061.us-central1.run.app${path.startsWith('/') ? path : `/${path}`}`;
+    console.log('Using hardcoded production WebSocket URL:', wsUrl);
+    return wsUrl;
   }
 
   // Local dev heuristic: if front-end is on 5173, backend is on 8083
@@ -23,7 +43,9 @@ export function getWebSocketUrl(path: string): string {
   const wsProto = protocol === 'https:' ? 'wss:' : 'ws:';
   const defaultBackendPort = port === '5173' || port === '3000' ? '8083' : port || '8083';
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${wsProto}//${hostname}:${defaultBackendPort}${normalizedPath}`;
+  const wsUrl = `${wsProto}//${hostname}:${defaultBackendPort}${normalizedPath}`;
+  console.log('Using local dev WebSocket URL:', wsUrl);
+  return wsUrl;
 }
 
 

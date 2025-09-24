@@ -6,6 +6,8 @@ import {
   CheckCircle, RefreshCw, Layers, Timer
 } from 'lucide-react';
 import { PhaseIcon } from '../utils/iconMapper';
+import { apiUrl } from '../config/api';
+import { fetchWithAuth } from '../utils/auth-interceptor';
 
 interface Phase {
   id: string;
@@ -87,7 +89,7 @@ export const WorkflowStudio: React.FC = () => {
       setLoading(true);
 
       // Load phases
-      const phasesRes = await fetch('/api/phases');
+      const phasesRes = await fetchWithAuth(apiUrl('/api/phases'));
       if (phasesRes.ok) {
         const phasesData = await phasesRes.json();
         setPhases(phasesData.sort((a: Phase, b: Phase) => a.position - b.position));
@@ -97,7 +99,7 @@ export const WorkflowStudio: React.FC = () => {
       }
 
       // Load prompts for all phases
-      const promptsRes = await fetch('/api/workflow/prompts');
+      const promptsRes = await fetchWithAuth(apiUrl('/api/workflow/prompts'));
       if (promptsRes.ok) {
         const promptsData = await promptsRes.json();
         const promptsMap: Record<string, Prompt> = {};
@@ -114,7 +116,7 @@ export const WorkflowStudio: React.FC = () => {
       }
 
       // Load phase data configurations
-      const phaseDataRes = await fetch('/api/phase-data');
+      const phaseDataRes = await fetchWithAuth(apiUrl('/api/phase-data'));
       if (phaseDataRes.ok) {
         const phaseDataArr = await phaseDataRes.json();
         const phaseDataMap: Record<string, PhaseData[]> = {};
@@ -138,7 +140,7 @@ export const WorkflowStudio: React.FC = () => {
 
     setSaving(true);
     try {
-      const response = await fetch(`/api/phases/${editingPhase.id}`, {
+      const response = await fetchWithAuth(apiUrl(`/api/phases/${editingPhase.id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -172,10 +174,10 @@ export const WorkflowStudio: React.FC = () => {
     try {
       const existingPrompt = prompts[selectedPhase.id];
       const url = existingPrompt
-        ? `/api/prompts/${existingPrompt.id}`
-        : '/api/prompts';
+        ? apiUrl(`/api/prompts/${existingPrompt.id}`)
+        : apiUrl('/api/prompts');
 
-      const response = await fetch(url, {
+      const response = await fetchWithAuth(url, {
         method: existingPrompt ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -201,7 +203,7 @@ export const WorkflowStudio: React.FC = () => {
 
   const loadPromptHistory = async (phaseId: string) => {
     try {
-      const response = await fetch(`/api/prompts/history/${phaseId}`);
+      const response = await fetchWithAuth(apiUrl(`/api/prompts/history/${phaseId}`));
       if (response.ok) {
         const history = await response.json();
         setPromptHistory(history);
@@ -217,7 +219,7 @@ export const WorkflowStudio: React.FC = () => {
 
     setSaving(true);
     try {
-      const response = await fetch(`/api/prompts/${prompts[selectedPhase.id]?.id}/revert/${versionId}`, {
+      const response = await fetchWithAuth(apiUrl(`/api/prompts/${prompts[selectedPhase.id]?.id}/revert/${versionId}`), {
         method: 'PUT'
       });
 
