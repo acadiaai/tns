@@ -1,0 +1,118 @@
+name: Deploy to Dev (tns.acadia.sh)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: therapy-nav-poc-quan
+  GCP_REGION: us-central1
+  BACKEND_SERVICE: tns-backend
+  FRONTEND_BUCKET: tns-acadia-sh
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to Cloud Run
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Backend to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.BACKEND_SERVICE }} \
+            --source ./backend \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 3 \
+            --port 8080 \
+            --session-affinity \
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-env-vars "CORS_ALLOWED_ORIGINS=https://tns.acadia.sh" \
+            --set-env-vars "FIREBASE_PROJECT_ID=${{ env.GCP_PROJECT_ID }}" \
+            --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" \
+            --set-secrets "FIREBASE_SERVICE_ACCOUNT=firebase-service-account:latest"
+
+      - name: Get Backend URL
+        id: backend-url
+        run: |
+          URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE }} \
+            --region ${{ env.GCP_REGION }} \
+            --format 'value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Backend deployed to: $URL"
+
+  deploy-frontend:
+    name: Deploy Frontend to Firebase Hosting
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        env:
+          VITE_API_URL: ${{ needs.deploy-backend.outputs.url }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ env.GCP_PROJECT_ID }}.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ env.GCP_PROJECT_ID }}.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          channelId: live
+          projectId: ${{ env.GCP_PROJECT_ID }}
+          target: tns-app
+          entrypoint: ./frontend
+
+  output-deployment-info:
+    name: Output Deployment Info
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "🚀 Deployment Complete!"
+          echo "========================"
+          echo "Backend API: ${{ needs.deploy-backend.outputs.url }}"
+          echo "Frontend: https://tns.acadia.sh"
+          echo ""
+          echo "📝 Next Steps for Namecheap DNS:"
+          echo "1. Go to Namecheap > acadia.sh > Manage > Advanced DNS"
+          echo "2. Add CNAME Record:"
+          echo "   Host: tns"
+          echo "   Value: ${{ env.GCP_PROJECT_ID }}.web.app"
+          echo "   TTL: Automatic"
