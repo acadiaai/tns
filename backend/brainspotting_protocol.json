@@ -1,0 +1,81 @@
+{
+  "id": "brainspotting_standard_v1",
+  "phases": [
+    {
+      "id": "intake",
+      "duration_sec": 420,
+      "required_fields": ["primary_concern", "symptom_duration", "severity_baseline", "session_goal"],
+      "check_in_interval_sec": 0,
+      "prompts": [
+        "What brings you in today?",
+        "On a 0–10 scale, where is your distress right now?"
+      ],
+      "auto_advance": {
+        "any": [
+          {"time_elapsed_sec": 420},
+          {"all": [{"time_elapsed_sec": 300}, {"fields_present": ["primary_concern", "severity_baseline"]}]}
+        ]
+      }
+    },
+    {
+      "id": "identify_activate",
+      "duration_sec": 180,
+      "required_fields": ["issue", "activation_phrase", "felt_sense_location"],
+      "prompts": [
+        "Say a few words that capture the issue.",
+        "Notice what you feel in your body as you say that."
+      ],
+      "auto_advance": {"any": [{"fields_present": ["issue", "activation_phrase"]}, {"time_elapsed_sec": 180}]}
+    },
+    {
+      "id": "setup",
+      "duration_sec": 240,
+      "required_fields": ["body_location", "eye_position", "suds_level"],
+      "prompts": [
+        "Where do you feel it most in your body?",
+        "Let your gaze find a natural spot; tell me where your eyes land.",
+        "What is your SUDS now (0–10)?"
+      ],
+      "auto_advance": {"any": [{"fields_present": ["body_location", "eye_position", "suds_level"]}, {"time_elapsed_sec": 240}]}
+    },
+    {
+      "id": "focused_mindfulness",
+      "duration_sec": 1260,
+      "check_in_interval_sec": 180,
+      "required_fields": [],
+      "prompts": [
+        "Stay with it; notice what comes up.",
+        "That's it."
+      ],
+      "auto_advance": {"any": [{"time_elapsed_sec": 1260}, {"suds_trend": "decreasing_or_low"}]}
+    },
+    {
+      "id": "status_check",
+      "duration_sec": 120,
+      "required_fields": ["suds_level", "direction"],
+      "prompts": ["What are you noticing now? SUDS?"],
+      "auto_advance": {"any": [{"fields_present": ["suds_level", "direction"]}, {"time_elapsed_sec": 120}]}
+    },
+    {
+      "id": "squeeze_lemon",
+      "duration_sec": 120,
+      "required_fields": ["lemon_squeeze_suds"],
+      "prompts": ["Return to the original issue for a moment; anything left?"],
+      "auto_advance": {"any": [{"suds_threshold": {"op": "<=", "value": 2}}, {"time_elapsed_sec": 120}]}
+    },
+    {
+      "id": "expansion_work",
+      "duration_sec": 240,
+      "required_fields": ["resource_spot_location", "resource_spot_suds"],
+      "prompts": ["Notice any new resources or perspectives."],
+      "auto_advance": {"any": [{"time_elapsed_sec": 240}, {"fields_present": ["resource_spot_location", "resource_spot_suds"]}]}
+    },
+    {
+      "id": "complete",
+      "duration_sec": 60,
+      "required_fields": ["final_suds", "debrief_summary"],
+      "prompts": ["Let’s ground and close. Anything you need before we finish?"],
+      "auto_advance": {"any": [{"time_elapsed_sec": 60}, {"suds_threshold": {"op": "<=", "value": 2}}]}
+    }
+  ]
+}

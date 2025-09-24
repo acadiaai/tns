@@ -1,0 +1,66 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud. It follows the same syntax as .gitignore, with the addition of
+# "#!include" directives (which insert the entries of the given .gitignore-style
+# file at that point).
+#
+# For more information, run:
+#   $ gcloud topic gcloudignore
+#
+.gcloudignore
+.git
+.gitignore
+
+# Node.js dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Go dependencies
+vendor/
+
+# Build artifacts
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+*.test
+
+# Documentation
+*.md
+docs/
+
+# Development files
+.env.local
+.env.development
+.env.test
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Terraform files
+*.tf
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# GitHub files
+.github/
+
+# Scripts
+bootstrap.sh
+run
+run.ps1

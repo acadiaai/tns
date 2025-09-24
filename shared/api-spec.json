@@ -1,0 +1,1019 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "AI-powered therapy navigation system for mental health practitioners",
+        "title": "Therapy Navigation System API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://template.example.com/support",
+            "email": "support@template.example.com"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8083",
+    "basePath": "/",
+    "paths": {
+        "/api/phase-data": {
+            "get": {
+                "description": "Get all data fields configured across all phases",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "phases"
+                ],
+                "summary": "Get all phase data fields",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/repository.PhaseData"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/phase-data/{phaseId}": {
+            "get": {
+                "description": "Get all data fields configured for a specific phase",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "phases"
+                ],
+                "summary": "Get phase data fields",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Phase ID",
+                        "name": "phaseId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/repository.PhaseData"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/phases": {
+            "get": {
+                "description": "Retrieve all workflow phases with their metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "phases"
+                ],
+                "summary": "Get all phases",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.PhaseResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/phases/auto-advance/{session_id}": {
+            "get": {
+                "description": "Check if a session should auto-advance to next phase",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "phases"
+                ],
+                "summary": "Check auto-advance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/phases/transition": {
+            "post": {
+                "description": "Request a phase transition for a session",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "phases"
+                ],
+                "summary": "Transition to a new phase",
+                "parameters": [
+                    {
+                        "description": "Transition request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.PhaseTransitionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/phases/{id}": {
+            "get": {
+                "description": "Retrieve a specific phase with its metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "phases"
+                ],
+                "summary": "Get phase by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Phase ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.PhaseResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update phase display name, description, colors, icons, and timing requirements",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "phases"
+                ],
+                "summary": "Update phase configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Phase ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Phase update request",
+                        "name": "phase",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdatePhaseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.Phase"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/phases/{id}/requirements": {
+            "get": {
+                "description": "Retrieve structured data requirements for a specific phase",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "phases"
+                ],
+                "summary": "Get phase requirements",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Phase ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/repository.PhaseData"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/phases/{id}/tools": {
+            "get": {
+                "description": "Retrieve MCP tools available for a specific phase",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "phases"
+                ],
+                "summary": "Get phase tools",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Phase ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/repository.Tool"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/prompts": {
+            "post": {
+                "description": "Create a new prompt for a phase",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "prompts"
+                ],
+                "summary": "Create prompt",
+                "parameters": [
+                    {
+                        "description": "Prompt content",
+                        "name": "prompt",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdatePromptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/repository.Prompt"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/prompts/history/{phaseId}": {
+            "get": {
+                "description": "Get all versions of prompts for a specific phase",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "prompts"
+                ],
+                "summary": "Get prompt version history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Phase ID",
+                        "name": "phaseId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/repository.Prompt"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/prompts/{id}": {
+            "put": {
+                "description": "Create a new version of an existing prompt",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "prompts"
+                ],
+                "summary": "Update prompt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Prompt ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Prompt content",
+                        "name": "prompt",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdatePromptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.Prompt"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/prompts/{id}/revert/{versionId}": {
+            "put": {
+                "description": "Revert a prompt to a previous version",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "prompts"
+                ],
+                "summary": "Revert prompt version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Prompt ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Version ID",
+                        "name": "versionId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.Prompt"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/sessions/{id}/context/last": {
+            "get": {
+                "description": "Returns the last constructed context bundle including prompt, token counts, and retrieval metadata",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Get last constructed context for session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tools": {
+            "get": {
+                "description": "Retrieve all MCP tools available in the system",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tools"
+                ],
+                "summary": "Get all tools",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/repository.Tool"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/workflow/prompts": {
+            "get": {
+                "description": "Get all currently active prompts for all phases",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "prompts"
+                ],
+                "summary": "Get all active prompts",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/repository.Prompt"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.PhaseResponse": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "duration_seconds": {
+                    "type": "integer"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "minimum_turns": {
+                    "description": "Required conversation exchanges",
+                    "type": "integer"
+                },
+                "phase_constraints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseConstraint"
+                    }
+                },
+                "phase_data": {
+                    "description": "Relationships",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseData"
+                    }
+                },
+                "phase_tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseTool"
+                    }
+                },
+                "position": {
+                    "description": "Order of phases",
+                    "type": "integer"
+                },
+                "recommended_duration_seconds": {
+                    "description": "Recommended time for phase",
+                    "type": "integer"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transitions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseTransition"
+                    }
+                },
+                "transitions_from": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseTransition"
+                    }
+                },
+                "transitions_to": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseTransition"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.PhaseTransitionRequest": {
+            "type": "object",
+            "properties": {
+                "session_data": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "to_phase_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdatePhaseRequest": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "max_duration": {
+                    "type": "integer"
+                },
+                "min_turns": {
+                    "type": "integer"
+                },
+                "recommended_duration": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.UpdatePromptRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "phase_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "repository.Phase": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "duration_seconds": {
+                    "type": "integer"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "minimum_turns": {
+                    "description": "Required conversation exchanges",
+                    "type": "integer"
+                },
+                "phase_constraints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseConstraint"
+                    }
+                },
+                "phase_data": {
+                    "description": "Relationships",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseData"
+                    }
+                },
+                "phase_tools": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseTool"
+                    }
+                },
+                "position": {
+                    "description": "Order of phases",
+                    "type": "integer"
+                },
+                "recommended_duration_seconds": {
+                    "description": "Recommended time for phase",
+                    "type": "integer"
+                },
+                "transitions_from": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseTransition"
+                    }
+                },
+                "transitions_to": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseTransition"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "repository.PhaseConstraint": {
+            "type": "object",
+            "properties": {
+                "behavior_type": {
+                    "description": "\"blocking\", \"advisory\", \"warning\"",
+                    "type": "string"
+                },
+                "constraint_type": {
+                    "description": "\"minimum_exchanges\", \"minimum_duration_seconds\", \"minimum_processing_time\"",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "phase": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/repository.Phase"
+                        }
+                    ]
+                },
+                "phase_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "value": {
+                    "description": "The constraint value (e.g., 3 exchanges, 60 seconds)",
+                    "type": "integer"
+                }
+            }
+        },
+        "repository.PhaseData": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "e.g., \"selected_issue\", \"suds_level\"",
+                    "type": "string"
+                },
+                "optional": {
+                    "type": "boolean"
+                },
+                "phase": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/repository.Phase"
+                        }
+                    ]
+                },
+                "phase_id": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "schema": {
+                    "description": "JSON Schema for validation",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "repository.PhaseTool": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "phase": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/repository.Phase"
+                        }
+                    ]
+                },
+                "phase_id": {
+                    "type": "string"
+                },
+                "tool": {
+                    "$ref": "#/definitions/repository.Tool"
+                },
+                "tool_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "repository.PhaseTransition": {
+            "type": "object",
+            "properties": {
+                "condition": {
+                    "description": "Optional condition for this transition",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "from_phase": {
+                    "description": "Relationships",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/repository.Phase"
+                        }
+                    ]
+                },
+                "from_phase_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "to_phase": {
+                    "$ref": "#/definitions/repository.Phase"
+                },
+                "to_phase_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "repository.Prompt": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "description": "system, user, tool",
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_system": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "description": "JSON object for template vars",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "string"
+                },
+                "usage_count": {
+                    "type": "integer"
+                },
+                "variables": {
+                    "description": "JSON array",
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                },
+                "workflow_phase": {
+                    "description": "Links to phases",
+                    "type": "string"
+                }
+            }
+        },
+        "repository.Tool": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "handler_func": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "input_schema": {
+                    "description": "JSON schema",
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "phase_tools": {
+                    "description": "Relationships",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PhaseTool"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "description": "Health check endpoints",
+            "name": "health"
+        },
+        {
+            "description": "User management endpoints",
+            "name": "users"
+        },
+        {
+            "description": "Message management endpoints",
+            "name": "messages"
+        }
+    ]
+}

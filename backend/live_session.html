@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Therapy Session</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #fff; padding: 20px; }
+        #messages { background: #2a2a2a; padding: 20px; border-radius: 10px; height: 500px; overflow-y: auto; }
+        .message { margin: 10px 0; padding: 10px; border-radius: 8px; }
+        .therapist { background: #4a3a7a; text-align: right; }
+        .patient { background: #3a4a7a; }
+        .status { color: #4a9eff; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>Live Therapy Session: 30cc9dde-b05f-49dc-9217-816ecd341996</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+    
+    <script>
+        const sessionId = '30cc9dde-b05f-49dc-9217-816ecd341996';
+        const ws = new WebSocket('ws://localhost:8083/api/sessions/' + sessionId + '/ws');
+        const messagesDiv = document.getElementById('messages');
+        const statusDiv = document.getElementById('status');
+        
+        ws.onopen = () => {
+            statusDiv.innerHTML = '<span class="status">✓ Connected - Conversation in progress...</span>';
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log('Message:', data);
+            
+            if (data.type === 'message' && data.message) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message ' + data.message.role;
+                msgDiv.innerHTML = '<strong>' + data.message.role.toUpperCase() + ':</strong> ' + data.message.content;
+                messagesDiv.appendChild(msgDiv);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } else if (data.type === 'extraction') {
+                statusDiv.innerHTML += ' | Extracted: ' + data.extracted_data.field;
+            }
+        };
+        
+        ws.onerror = (error) => {
+            statusDiv.innerHTML = '<span style="color:red">Error: ' + error + '</span>';
+        };
+        
+        ws.onclose = () => {
+            statusDiv.innerHTML += ' | <span style="color:orange">Disconnected</span>';
+        };
+        
+        // Load existing messages
+        fetch('http://localhost:8083/api/sessions/' + sessionId)
+            .then(r => r.json())
+            .then(session => {
+                statusDiv.innerHTML += ' | Phase: ' + session.phase;
+            });
+    </script>
+</body>
+</html>

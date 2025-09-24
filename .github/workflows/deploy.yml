@@ -1,0 +1,98 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-and-push:
+    name: 'Build and Push Docker Images'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for Workload Identity Federation
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Build and Push Backend Image
+        run: |
+          docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/api:${{ github.sha }} ./backend
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/api:${{ github.sha }}
+          docker tag us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/api:${{ github.sha }} us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/api:latest
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/api:latest
+
+      - name: Build and Push Frontend Image
+        run: |
+          docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/frontend:${{ github.sha }} ./frontend
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/frontend:${{ github.sha }}
+          docker tag us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/frontend:${{ github.sha }} us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/frontend:latest
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/therapy-nav-images/frontend:latest
+
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: read
+      id-token: write # Required for Workload Identity Federation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Sanitize Branch Name
+        id: sanitize
+        run: |
+          # Sanitize branch name for Terraform workspace and resource naming
+          BRANCH_NAME=$(echo "${{ github.head_ref || github.ref_name }}" | sed 's/[^a-zA-Z0-9]/-/g' | head -c 63)
+          echo "sanitized_branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Terraform Init
+        run: terraform -chdir=infra init -backend-config="bucket=${{ secrets.GCP_PROJECT_ID }}-tfstate"
+
+      - name: Terraform Workspace
+        run: |
+          # Create or switch to a workspace based on the branch name
+          terraform -chdir=infra workspace select ${{ steps.sanitize.outputs.sanitized_branch }} || terraform -chdir=infra workspace new ${{ steps.sanitize.outputs.sanitized_branch }}
+
+      - name: Terraform Plan
+        if: github.event_name == 'pull_request'
+        run: |
+          terraform -chdir=infra plan \
+            -var="gcp_project_id=${{ secrets.GCP_PROJECT_ID }}" \
+            -var="environment_name=${{ steps.sanitize.outputs.sanitized_branch }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          terraform -chdir=infra apply -auto-approve \
+            -var="gcp_project_id=${{ secrets.GCP_PROJECT_ID }}" \
+            -var="environment_name=main"

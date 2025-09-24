@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "/Users/sam/.nvm/versions/node/v22.17.0/bin/npx",
+      "args": ["@playwright/mcp"]
+    }
+  }
+}

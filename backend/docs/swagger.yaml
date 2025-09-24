@@ -1,0 +1,674 @@
+basePath: /
+definitions:
+  api.PhaseResponse:
+    properties:
+      color:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      display_name:
+        type: string
+      duration_seconds:
+        type: integer
+      icon:
+        type: string
+      id:
+        type: string
+      minimum_turns:
+        description: Required conversation exchanges
+        type: integer
+      phase_constraints:
+        items:
+          $ref: '#/definitions/repository.PhaseConstraint'
+        type: array
+      phase_data:
+        description: Relationships
+        items:
+          $ref: '#/definitions/repository.PhaseData'
+        type: array
+      phase_tools:
+        items:
+          $ref: '#/definitions/repository.PhaseTool'
+        type: array
+      position:
+        description: Order of phases
+        type: integer
+      recommended_duration_seconds:
+        description: Recommended time for phase
+        type: integer
+      tools:
+        items:
+          type: string
+        type: array
+      transitions:
+        items:
+          $ref: '#/definitions/repository.PhaseTransition'
+        type: array
+      transitions_from:
+        items:
+          $ref: '#/definitions/repository.PhaseTransition'
+        type: array
+      transitions_to:
+        items:
+          $ref: '#/definitions/repository.PhaseTransition'
+        type: array
+      updated_at:
+        type: string
+    type: object
+  api.PhaseTransitionRequest:
+    properties:
+      session_data:
+        additionalProperties: true
+        type: object
+      session_id:
+        type: string
+      to_phase_id:
+        type: string
+    type: object
+  api.UpdatePhaseRequest:
+    properties:
+      color:
+        type: string
+      description:
+        type: string
+      display_name:
+        type: string
+      icon:
+        type: string
+      max_duration:
+        type: integer
+      min_turns:
+        type: integer
+      recommended_duration:
+        type: integer
+    type: object
+  api.UpdatePromptRequest:
+    properties:
+      content:
+        type: string
+      phase_id:
+        type: string
+    type: object
+  repository.Phase:
+    properties:
+      color:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      display_name:
+        type: string
+      duration_seconds:
+        type: integer
+      icon:
+        type: string
+      id:
+        type: string
+      minimum_turns:
+        description: Required conversation exchanges
+        type: integer
+      phase_constraints:
+        items:
+          $ref: '#/definitions/repository.PhaseConstraint'
+        type: array
+      phase_data:
+        description: Relationships
+        items:
+          $ref: '#/definitions/repository.PhaseData'
+        type: array
+      phase_tools:
+        items:
+          $ref: '#/definitions/repository.PhaseTool'
+        type: array
+      position:
+        description: Order of phases
+        type: integer
+      recommended_duration_seconds:
+        description: Recommended time for phase
+        type: integer
+      transitions_from:
+        items:
+          $ref: '#/definitions/repository.PhaseTransition'
+        type: array
+      transitions_to:
+        items:
+          $ref: '#/definitions/repository.PhaseTransition'
+        type: array
+      updated_at:
+        type: string
+    type: object
+  repository.PhaseConstraint:
+    properties:
+      behavior_type:
+        description: '"blocking", "advisory", "warning"'
+        type: string
+      constraint_type:
+        description: '"minimum_exchanges", "minimum_duration_seconds", "minimum_processing_time"'
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      phase:
+        allOf:
+        - $ref: '#/definitions/repository.Phase'
+        description: Relationships
+      phase_id:
+        type: string
+      updated_at:
+        type: string
+      value:
+        description: The constraint value (e.g., 3 exchanges, 60 seconds)
+        type: integer
+    type: object
+  repository.PhaseData:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        description: e.g., "selected_issue", "suds_level"
+        type: string
+      optional:
+        type: boolean
+      phase:
+        allOf:
+        - $ref: '#/definitions/repository.Phase'
+        description: Relationships
+      phase_id:
+        type: string
+      required:
+        type: boolean
+      schema:
+        description: JSON Schema for validation
+        type: string
+      updated_at:
+        type: string
+    type: object
+  repository.PhaseTool:
+    properties:
+      id:
+        type: string
+      is_active:
+        type: boolean
+      phase:
+        allOf:
+        - $ref: '#/definitions/repository.Phase'
+        description: Relationships
+      phase_id:
+        type: string
+      tool:
+        $ref: '#/definitions/repository.Tool'
+      tool_id:
+        type: string
+    type: object
+  repository.PhaseTransition:
+    properties:
+      condition:
+        description: Optional condition for this transition
+        type: string
+      created_at:
+        type: string
+      from_phase:
+        allOf:
+        - $ref: '#/definitions/repository.Phase'
+        description: Relationships
+      from_phase_id:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      priority:
+        type: integer
+      to_phase:
+        $ref: '#/definitions/repository.Phase'
+      to_phase_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  repository.Prompt:
+    properties:
+      category:
+        description: system, user, tool
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      is_system:
+        type: boolean
+      name:
+        type: string
+      parameters:
+        description: JSON object for template vars
+        type: string
+      updated_at:
+        type: string
+      updated_by:
+        type: string
+      usage_count:
+        type: integer
+      variables:
+        description: JSON array
+        type: string
+      version:
+        type: integer
+      workflow_phase:
+        description: Links to phases
+        type: string
+    type: object
+  repository.Tool:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      handler_func:
+        type: string
+      id:
+        type: string
+      input_schema:
+        description: JSON schema
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+      phase_tools:
+        description: Relationships
+        items:
+          $ref: '#/definitions/repository.PhaseTool'
+        type: array
+      updated_at:
+        type: string
+      version:
+        type: integer
+    type: object
+host: localhost:8083
+info:
+  contact:
+    email: support@template.example.com
+    name: API Support
+    url: http://template.example.com/support
+  description: AI-powered therapy navigation system for mental health practitioners
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Therapy Navigation System API
+  version: "1.0"
+paths:
+  /api/phase-data:
+    get:
+      description: Get all data fields configured across all phases
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/repository.PhaseData'
+            type: array
+      summary: Get all phase data fields
+      tags:
+      - phases
+  /api/phase-data/{phaseId}:
+    get:
+      description: Get all data fields configured for a specific phase
+      parameters:
+      - description: Phase ID
+        in: path
+        name: phaseId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/repository.PhaseData'
+            type: array
+      summary: Get phase data fields
+      tags:
+      - phases
+  /api/phases:
+    get:
+      description: Retrieve all workflow phases with their metadata
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.PhaseResponse'
+            type: array
+      summary: Get all phases
+      tags:
+      - phases
+  /api/phases/{id}:
+    get:
+      description: Retrieve a specific phase with its metadata
+      parameters:
+      - description: Phase ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.PhaseResponse'
+      summary: Get phase by ID
+      tags:
+      - phases
+    put:
+      consumes:
+      - application/json
+      description: Update phase display name, description, colors, icons, and timing
+        requirements
+      parameters:
+      - description: Phase ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Phase update request
+        in: body
+        name: phase
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdatePhaseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/repository.Phase'
+      summary: Update phase configuration
+      tags:
+      - phases
+  /api/phases/{id}/requirements:
+    get:
+      description: Retrieve structured data requirements for a specific phase
+      parameters:
+      - description: Phase ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/repository.PhaseData'
+            type: array
+      summary: Get phase requirements
+      tags:
+      - phases
+  /api/phases/{id}/tools:
+    get:
+      description: Retrieve MCP tools available for a specific phase
+      parameters:
+      - description: Phase ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/repository.Tool'
+            type: array
+      summary: Get phase tools
+      tags:
+      - phases
+  /api/phases/auto-advance/{session_id}:
+    get:
+      consumes:
+      - application/json
+      description: Check if a session should auto-advance to next phase
+      parameters:
+      - description: Session ID
+        in: path
+        name: session_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Check auto-advance
+      tags:
+      - phases
+  /api/phases/transition:
+    post:
+      consumes:
+      - application/json
+      description: Request a phase transition for a session
+      parameters:
+      - description: Transition request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.PhaseTransitionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Transition to a new phase
+      tags:
+      - phases
+  /api/prompts:
+    post:
+      consumes:
+      - application/json
+      description: Create a new prompt for a phase
+      parameters:
+      - description: Prompt content
+        in: body
+        name: prompt
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdatePromptRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/repository.Prompt'
+      summary: Create prompt
+      tags:
+      - prompts
+  /api/prompts/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Create a new version of an existing prompt
+      parameters:
+      - description: Prompt ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Prompt content
+        in: body
+        name: prompt
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdatePromptRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/repository.Prompt'
+      summary: Update prompt
+      tags:
+      - prompts
+  /api/prompts/{id}/revert/{versionId}:
+    put:
+      description: Revert a prompt to a previous version
+      parameters:
+      - description: Prompt ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version ID
+        in: path
+        name: versionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/repository.Prompt'
+      summary: Revert prompt version
+      tags:
+      - prompts
+  /api/prompts/history/{phaseId}:
+    get:
+      description: Get all versions of prompts for a specific phase
+      parameters:
+      - description: Phase ID
+        in: path
+        name: phaseId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/repository.Prompt'
+            type: array
+      summary: Get prompt version history
+      tags:
+      - prompts
+  /api/sessions/{id}/context/last:
+    get:
+      consumes:
+      - application/json
+      description: Returns the last constructed context bundle including prompt, token
+        counts, and retrieval metadata
+      parameters:
+      - description: Session ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get last constructed context for session
+      tags:
+      - sessions
+  /api/tools:
+    get:
+      description: Retrieve all MCP tools available in the system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/repository.Tool'
+            type: array
+      summary: Get all tools
+      tags:
+      - tools
+  /api/workflow/prompts:
+    get:
+      description: Get all currently active prompts for all phases
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/repository.Prompt'
+            type: array
+      summary: Get all active prompts
+      tags:
+      - prompts
+schemes:
+- http
+- https
+swagger: "2.0"
+tags:
+- description: Health check endpoints
+  name: health
+- description: User management endpoints
+  name: users
+- description: Message management endpoints
+  name: messages
