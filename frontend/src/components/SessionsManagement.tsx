@@ -48,7 +48,7 @@ export const SessionsManagement: React.FC<SessionsManagementProps> = ({ onSessio
     try {
       const [therapistsRes, patientsRes, sessionsRes] = await Promise.all([
         fetchWithAuth(apiUrl('/api/therapists')),
-        fetchWithAuth(apiUrl('/api/patients')),
+        fetchWithAuth(apiUrl('/api/clients')),
         fetchWithAuth(apiUrl('/api/sessions'))
       ]);
 
@@ -62,7 +62,7 @@ export const SessionsManagement: React.FC<SessionsManagementProps> = ({ onSessio
 
       // Ensure we have arrays
       const therapistsArray = Array.isArray(therapistsData) ? therapistsData : [];
-      const patientsArray = Array.isArray(patientsData) ? patientsData : (patientsData?.patients || []);
+      const patientsArray = Array.isArray(patientsData) ? patientsData : [];
       const sessionsArray = Array.isArray(sessionsData) ? sessionsData : [];
 
       // Transform sessions and fetch workflow status for each
