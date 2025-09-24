@@ -20,7 +20,7 @@ export type OpenAPIConfig = {
 };
 
 export const OpenAPI: OpenAPIConfig = {
-    BASE: import.meta.env.VITE_API_URL || 'http://localhost:8083',
+    BASE: window.location.port === '5173' ? 'http://localhost:8083' : '',
     VERSION: '1.0.0',
     WITH_CREDENTIALS: false,
     CREDENTIALS: 'include',

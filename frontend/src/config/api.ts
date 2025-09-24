@@ -1,5 +1,6 @@
-// API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8083';
+// API Configuration - Use relative paths when served from backend, localhost for dev server
+const isDevServer = window.location.port === '5173';
+export const API_BASE_URL = isDevServer ? 'http://localhost:8083' : '';
 
 // WebSocket URL (convert http to ws, https to wss)
 export const WS_BASE_URL = API_BASE_URL
