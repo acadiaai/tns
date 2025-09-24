@@ -482,12 +482,32 @@ export const TherapyNavigationSystem: React.FC = () => {
                     onClick={async () => {
                       try {
                         console.log('Creating quick coach session...');
+
+                        // Fetch actual client and therapist IDs from database
+                        const [clientsRes, therapistsRes] = await Promise.all([
+                          fetchWithAuth(apiUrl('/api/clients')),
+                          fetchWithAuth(apiUrl('/api/therapists'))
+                        ]);
+
+                        const clients = await clientsRes.json();
+                        const therapists = await therapistsRes.json();
+
+                        // Use first available client and therapist
+                        const client_id = clients[0]?.id;
+                        const therapist_id = therapists[0]?.id;
+
+                        if (!client_id || !therapist_id) {
+                          throw new Error('No clients or therapists available');
+                        }
+
+                        console.log('Using client_id:', client_id, 'therapist_id:', therapist_id);
+
                         const response = await fetchWithAuth(apiUrl('/api/sessions'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                            client_id: '3b9e936b-476b-4dd7-93bc-357943438334',
-                            therapist_id: '5b69a8ad-eeda-48ef-9a97-80725c88308a',
+                            client_id,
+                            therapist_id,
                             start_time: new Date().toISOString()
                           })
                         });
