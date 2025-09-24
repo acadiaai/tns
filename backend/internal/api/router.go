@@ -51,7 +51,6 @@ func NewRouter() *chi.Mux {
 		// Basic entities for UI
 		r.Get("/therapists", GetTherapistsHandler)
 		r.Get("/clients", GetClientsHandler)
-		r.Get("/patients", GetClientsHandler) // Alias for frontend compatibility
 		r.Get("/sessions", GetSessionsHandler)
 		r.Post("/sessions", CreateSessionHandler)
 
