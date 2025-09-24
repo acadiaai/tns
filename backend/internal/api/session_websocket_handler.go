@@ -197,6 +197,11 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 		delete(sessionConnections, sessionID)
 		sessionConnMutex.Unlock()
 
+		// Clear the greeting flag so it can be sent on reconnect
+		activeConvMutex.Lock()
+		delete(activeConversations, sessionID+"_greeting")
+		activeConvMutex.Unlock()
+
 		// Stop the session timer
 		stopSessionTimer(sessionID)
 	}()
