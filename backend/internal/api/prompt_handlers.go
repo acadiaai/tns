@@ -17,11 +17,20 @@ func GetSessionPrompts(w http.ResponseWriter, r *http.Request) {
 
 	// Read the prompts.jsonl file
 	// Note: In production, this should be from database
-	promptsFile := "/Users/acadiaai/projects/therapy-navigation-system/backend/logs/prompts.jsonl"
+	promptsFile := "logs/prompts.jsonl"
+	// Try alternative paths for different environments
+	if _, err := os.Stat(promptsFile); os.IsNotExist(err) {
+		promptsFile = "/app/logs/prompts.jsonl"
+	}
+	if _, err := os.Stat(promptsFile); os.IsNotExist(err) {
+		promptsFile = "./logs/prompts.jsonl"
+	}
 	file, err := os.Open(promptsFile)
 	if err != nil {
-		logger.AppLogger.WithError(err).Error("Failed to open prompts file")
-		http.Error(w, "Failed to read prompts", http.StatusInternalServerError)
+		logger.AppLogger.WithError(err).Warn("Prompts file not found, returning empty results")
+		// Return empty results instead of error
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{})
 		return
 	}
 	defer file.Close()
@@ -61,11 +70,20 @@ func GetSessionPromptsRawText(w http.ResponseWriter, r *http.Request) {
 	sessionID := chi.URLParam(r, "id")
 
 	// Read the prompts.jsonl file
-	promptsFile := "/Users/acadiaai/projects/therapy-navigation-system/backend/logs/prompts.jsonl"
+	promptsFile := "logs/prompts.jsonl"
+	// Try alternative paths for different environments
+	if _, err := os.Stat(promptsFile); os.IsNotExist(err) {
+		promptsFile = "/app/logs/prompts.jsonl"
+	}
+	if _, err := os.Stat(promptsFile); os.IsNotExist(err) {
+		promptsFile = "./logs/prompts.jsonl"
+	}
 	file, err := os.Open(promptsFile)
 	if err != nil {
-		logger.AppLogger.WithError(err).Error("Failed to open prompts file")
-		http.Error(w, "Failed to read prompts", http.StatusInternalServerError)
+		logger.AppLogger.WithError(err).Warn("Prompts file not found, returning empty results")
+		// Return empty text results instead of error
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprintf(w, "=== RAW PROMPT LOG FOR SESSION %s ===\n\nNo prompt logs found.\n", sessionID)
 		return
 	}
 	defer file.Close()
