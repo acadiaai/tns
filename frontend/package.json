@@ -11,6 +11,7 @@
     "check-api": "test -f ../shared/api-spec.json || (echo 'ERROR: API spec not found. Run backend build first.' && exit 1)",
     "prebuild": "npm run generate-types",
     "build": "tsc && vite build",
+    "build-only": "vite build",
     "build-safe": "./scripts/build-safe.sh",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"

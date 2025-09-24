@@ -1,12 +1,20 @@
 package api
 
 import (
+	"embed"
+	"io/fs"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 )
+
+// Embed the frontend build files
+//
+//go:embed all:static
+var staticFiles embed.FS
 
 func NewRouter() *chi.Mux {
 	r := chi.NewRouter()
@@ -88,6 +96,32 @@ func NewRouter() *chi.Mux {
 
 	// API Documentation
 	r.Handle("/docs/*", http.StripPrefix("/docs/", http.FileServer(http.Dir("./docs"))))
+
+	// Serve frontend static files
+	// This must be last to avoid catching API routes
+	staticFS, err := fs.Sub(staticFiles, "static")
+	if err == nil {
+		fileServer := http.FileServer(http.FS(staticFS))
+		r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+			// Try to serve the file
+			path := r.URL.Path
+			if path == "/" {
+				path = "/index.html"
+			}
+
+			// Check if file exists
+			if _, err := staticFS.Open(strings.TrimPrefix(path, "/")); err == nil {
+				fileServer.ServeHTTP(w, r)
+			} else if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/docs/") {
+				// API or docs route - return 404
+				http.NotFound(w, r)
+			} else {
+				// For all other routes, serve index.html (SPA routing)
+				r.URL.Path = "/index.html"
+				fileServer.ServeHTTP(w, r)
+			}
+		})
+	}
 
 	return r
 }

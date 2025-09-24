@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "build-only": "vite build"
+  }
+}

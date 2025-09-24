@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+README*
+
+# Development files
+.env
+.env.*
+!frontend/.env.production
+
+# Test files
+*_test.go
+*.test
+test/
+tests/
+coverage/
+
+# Build artifacts
+dist/
+build/
+*.exe
+main
+therapy.db*
+
+# Node modules (will be installed fresh in Docker)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+cloudbuild.yaml
+
+# Firebase
+.firebase/
+firebase.json
+.firebaserc
+
+# Go build cache
+vendor/
