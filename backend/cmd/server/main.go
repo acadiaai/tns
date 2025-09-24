@@ -161,6 +161,16 @@ func main() {
 
 	logger.AppLogger.Info("🛑 Server shutting down gracefully...")
 
+	// Backup database before shutdown
+	if repository.BackupService != nil {
+		logger.AppLogger.Info("Performing final database backup...")
+		if err := repository.BackupService.Close(); err != nil {
+			logger.AppLogger.WithError(err).Error("Failed to perform final backup")
+		} else {
+			logger.AppLogger.Info("Final database backup completed")
+		}
+	}
+
 	// Create a context with timeout for graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
