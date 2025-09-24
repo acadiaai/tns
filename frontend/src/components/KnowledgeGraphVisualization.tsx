@@ -18,6 +18,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GitBranch, Sparkles, Brain, Heart, Target, Shield, Users, Activity } from 'lucide-react';
+import { wsUrl } from '../config/api';
 
 // Custom node component with glassmorphic design
 const CustomNode = ({ data }: { data: any }) => {
@@ -226,7 +227,7 @@ export const KnowledgeGraphVisualization: React.FC<KnowledgeGraphProps> = ({ ses
   // Real-time updates via WebSocket
   useEffect(() => {
     if (realtime && sessionId) {
-      const ws = new WebSocket(`ws://localhost:8083/api/sessions/${sessionId}/knowledge-graph`);
+      const ws = new WebSocket(wsUrl(`/api/sessions/${sessionId}/knowledge-graph`));
       
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);

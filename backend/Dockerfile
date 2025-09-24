@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM --platform=linux/amd64 golang:1.23 AS builder
 
 WORKDIR /app
 
@@ -10,13 +10,13 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
-RUN go build -o main cmd/server/main.go
+# Build the application with CGO for SQLite
+RUN CGO_ENABLED=1 go build -o main cmd/server/main.go
 
 # Runtime stage
-FROM alpine:latest
+FROM --platform=linux/amd64 debian:bookworm-slim
 
-RUN apk --no-cache add ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates sqlite3 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root/
 
@@ -24,7 +24,7 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 
 # Copy any necessary config files or assets
-COPY --from=builder /app/internal/templates ./internal/templates
+# COPY --from=builder /app/internal/templates ./internal/templates
 
 # Expose port
 EXPOSE 8080

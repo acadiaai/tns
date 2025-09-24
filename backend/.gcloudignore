@@ -1,0 +1,34 @@
+# .gcloudignore for backend
+# Include everything by default, then exclude specifics
+
+# Exclude logs
+logs/
+*.log
+
+# Exclude binaries
+/main
+/test-build
+/therapy-backend
+/therapy-navigation-system
+/server
+bin/
+*.exe
+
+# Exclude databases
+*.db
+*.sqlite
+*.sqlite3
+therapy.db
+
+# Exclude session data
+session-transcripts/
+
+# Git
+.git/
+
+# OS files
+.DS_Store
+
+# Build cache
+.cache/
+tmp/

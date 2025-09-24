@@ -8,6 +8,8 @@ import { NoDataEmptyState } from './EmptyStates';
 import { SessionDashboard } from '../features/session/SessionDashboard';
 import { WorkflowStudio } from './WorkflowStudio';
 import UserAvatar from './UserAvatar';
+import { apiUrl } from '../config/api';
+import { fetchWithAuth } from '../utils/auth-interceptor';
 
 interface Patient {
   id: string;
@@ -67,7 +69,7 @@ export const TherapyNavigationSystem: React.FC = () => {
   useEffect(() => {
     const fetchVersion = async () => {
       try {
-        const response = await fetch('http://localhost:8083/version');
+        const response = await fetch(apiUrl('/version'));
         const data = await response.json();
         setBackendVersion(data.build_time || 'unknown');
       } catch (error) {
@@ -166,7 +168,7 @@ export const TherapyNavigationSystem: React.FC = () => {
   const loadPatients = async () => {
     try {
       console.log('📊 Loading patients...');
-      const response = await fetch('http://localhost:8083/api/patients');
+      const response = await fetchWithAuth(apiUrl('/api/patients'));
       
       if (!response.ok) {
         console.error('❌ Patients API error:', response.status);
@@ -204,7 +206,7 @@ export const TherapyNavigationSystem: React.FC = () => {
   const loadTherapists = async () => {
     try {
       console.log('Loading therapists...');
-      const response = await fetch('http://localhost:8083/api/therapists');
+      const response = await fetchWithAuth(apiUrl('/api/therapists'));
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -253,7 +255,7 @@ export const TherapyNavigationSystem: React.FC = () => {
 
   const createNewTherapist = async (therapistData: any) => {
     try {
-      const response = await fetch('http://localhost:8083/api/therapists', {
+      const response = await fetchWithAuth(apiUrl('/api/therapists'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(therapistData)
@@ -480,7 +482,7 @@ export const TherapyNavigationSystem: React.FC = () => {
                     onClick={async () => {
                       try {
                         console.log('Creating quick coach session...');
-                        const response = await fetch('http://localhost:8083/api/sessions', {
+                        const response = await fetchWithAuth(apiUrl('/api/sessions'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({

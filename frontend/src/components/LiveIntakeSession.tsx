@@ -3,6 +3,7 @@ import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Zap, MessageSquare, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiUrl, wsUrl } from '../config/api';
 
 interface Message {
   id: string;
@@ -28,7 +29,7 @@ export const LiveIntakeSession: React.FC = () => {
   const startSession = async () => {
     try {
       // Start a simple session
-      const response = await fetch('http://localhost:8083/api/simple/start', {
+      const response = await fetch(apiUrl('/api/simple/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ num_turns: 8 })
@@ -39,7 +40,7 @@ export const LiveIntakeSession: React.FC = () => {
       setIsSessionActive(true);
       
       // Connect to WebSocket
-      const websocket = new WebSocket(`ws://localhost:8083${data.websocket}`);
+      const websocket = new WebSocket(wsUrl(data.websocket));
       
       websocket.onmessage = (event) => {
         const update = JSON.parse(event.data);

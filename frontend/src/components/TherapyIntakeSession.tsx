@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, Brain, Users, Network, Sparkles } from 'lucide-react';
+import { apiUrl, wsUrl } from '../config/api';
 
 interface Message {
   id: string;
@@ -93,7 +94,7 @@ export const TherapyIntakeSession: React.FC = () => {
   const startSession = async () => {
     try {
       // Start an intake session
-      const response = await fetch('http://localhost:8083/api/intake/sessions', {
+      const response = await fetch(apiUrl('/api/intake/sessions'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -107,7 +108,7 @@ export const TherapyIntakeSession: React.FC = () => {
       setIsSessionActive(true);
       
       // Connect to WebSocket
-      const websocket = new WebSocket(`ws://localhost:8083${data.websocket}`);
+      const websocket = new WebSocket(wsUrl(data.websocket));
       
       websocket.onmessage = (event) => {
         const update = JSON.parse(event.data);
@@ -138,7 +139,7 @@ export const TherapyIntakeSession: React.FC = () => {
 
   const fetchIntakeProgress = async (sessionId: string) => {
     try {
-      const response = await fetch(`http://localhost:8083/api/sessions/${sessionId}/attention`);
+      const response = await fetch(apiUrl(`/api/sessions/${sessionId}/attention`));
       const data = await response.json();
       setIntakeProgress(data);
       

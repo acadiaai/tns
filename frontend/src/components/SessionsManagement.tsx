@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, MessageSquare, User, Brain, Calendar, FileText, Target, Zap, AlertCircle, RefreshCw, Minimize, Maximize, Wind, CheckCircle, Shield, Heart, Sparkles } from 'lucide-react';
+import { apiUrl } from '../config/api';
+import { fetchWithAuth } from '../utils/auth-interceptor';
 
 interface Patient {
   id: string;
@@ -45,9 +47,9 @@ export const SessionsManagement: React.FC<SessionsManagementProps> = ({ onSessio
   const loadData = async () => {
     try {
       const [therapistsRes, patientsRes, sessionsRes] = await Promise.all([
-        fetch('http://localhost:8083/api/therapists'),
-        fetch('http://localhost:8083/api/patients'),
-        fetch('http://localhost:8083/api/sessions')
+        fetchWithAuth(apiUrl('/api/therapists')),
+        fetchWithAuth(apiUrl('/api/patients')),
+        fetchWithAuth(apiUrl('/api/sessions'))
       ]);
 
       const [therapistsData, patientsData, sessionsData] = await Promise.all([
@@ -78,8 +80,8 @@ export const SessionsManagement: React.FC<SessionsManagementProps> = ({ onSessio
           // Fetch actual workflow status and conversation length
           try {
             const [workflowResponse, conversationResponse] = await Promise.all([
-              fetch(`http://localhost:8083/api/sessions/${session.id}/workflow/status`),
-              fetch(`http://localhost:8083/api/sessions/${session.id}/messages`)
+              fetchWithAuth(apiUrl(`/api/sessions/${session.id}/workflow/status`)),
+              fetchWithAuth(apiUrl(`/api/sessions/${session.id}/messages`))
             ]);
             
             // Handle workflow status
@@ -161,7 +163,7 @@ export const SessionsManagement: React.FC<SessionsManagementProps> = ({ onSessio
 
   const createNewSession = async (therapistId: string, patientId: string) => {
     try {
-      const response = await fetch('http://localhost:8083/api/sessions', {
+      const response = await fetchWithAuth(apiUrl('/api/sessions'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

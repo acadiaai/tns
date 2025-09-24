@@ -26,6 +26,12 @@ func InitializeAuth() error {
 // AuthMiddleware validates Firebase ID tokens and checks whitelist
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Skip auth for OPTIONS requests (CORS preflight)
+		if r.Method == "OPTIONS" {
+			next(w, r)
+			return
+		}
+
 		// Skip auth for health endpoints
 		if r.URL.Path == "/health" || r.URL.Path == "/version" {
 			next(w, r)

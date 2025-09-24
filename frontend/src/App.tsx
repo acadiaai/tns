@@ -6,11 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Logout } from './pages/Logout';
 import { Admin } from './pages/Admin';
-import { setupConsoleLogger } from './utils/console-logger';
 import './index.css';
-
-// Set up console logger to forward logs to Vite server
-setupConsoleLogger();
 
 function App() {
   return (
