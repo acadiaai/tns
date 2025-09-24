@@ -1,0 +1,17 @@
+steps:
+  # Pull the previous image for caching
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args: ['-c', 'docker pull us-central1-docker.pkg.dev/$PROJECT_ID/tns-repo/tns-backend:latest || exit 0']
+
+  # Build with cache
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '--cache-from', 'us-central1-docker.pkg.dev/$PROJECT_ID/tns-repo/tns-backend:latest',
+      '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/tns-repo/tns-backend:latest',
+      '.'
+    ]
+
+images: ['us-central1-docker.pkg.dev/$PROJECT_ID/tns-repo/tns-backend:latest']
+timeout: '600s'
