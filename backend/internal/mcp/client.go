@@ -23,9 +23,10 @@ func NewMCPClientFromEnv() *MCPClient {
 		// Use PORT environment variable if set (Cloud Run sets this)
 		port := os.Getenv("PORT")
 		if port == "" {
-			port = "8083" // Default for local development
+			port = "8080" // Default to 8080 for Cloud Run
 		}
 		base = fmt.Sprintf("http://localhost:%s/api/mcp", port)
+		fmt.Printf("[MCP_DEBUG] PORT=%s, MCP URL=%s\n", port, base)
 	}
 	return &MCPClient{
 		baseURL:    base,

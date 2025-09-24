@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../../config/api';
+import { fetchWithAuth } from '../../../utils/auth-interceptor';
 import { CheckCircle, XCircle, Clock, AlertTriangle, FileText, RefreshCw } from 'lucide-react';
 import { DataViewer } from '../../../components/DataViewer';
 
@@ -37,7 +39,7 @@ export const PhaseRequirements: React.FC<PhaseRequirementsProps> = ({
       setError(null);
 
       // First get the phase ID from the current phase name
-      const phasesResponse = await fetch('/api/phases');
+      const phasesResponse = await fetchWithAuth(apiUrl('/api/phases'));
       if (!phasesResponse.ok) throw new Error('Failed to load phases');
 
       const phases = await phasesResponse.json();
@@ -49,7 +51,7 @@ export const PhaseRequirements: React.FC<PhaseRequirementsProps> = ({
       }
 
       // Get requirements for this phase
-      const reqResponse = await fetch(`/api/phases/${currentPhaseObj.id}/requirements`);
+      const reqResponse = await fetchWithAuth(apiUrl(`/api/phases/${currentPhaseObj.id}/requirements`));
       if (!reqResponse.ok) throw new Error('Failed to load requirements');
 
       const reqs = await reqResponse.json();

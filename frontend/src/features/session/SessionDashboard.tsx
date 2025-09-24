@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { apiUrl } from '../../config/api';
+import { fetchWithAuth } from '../../utils/auth-interceptor';
 import { ChatPanel } from './components/ChatPanel';
 import { PromptExplorer } from './PromptExplorer';
 import { WorkflowExplorer } from './components/WorkflowExplorer';
@@ -37,7 +39,7 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
 
   // Fetch phases only if we need metadata (colors, icons)
   React.useEffect(() => {
-    fetch('/api/phases')
+    fetchWithAuth(apiUrl('/api/phases'))
       .then(res => res.json())
       .then(data => {
         console.log('Loaded phases with data:', data);

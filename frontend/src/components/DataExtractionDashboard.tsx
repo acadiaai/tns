@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../config/api';
+import { fetchWithAuth } from '../utils/auth-interceptor';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/Card';
 import { Button } from './ui/Button';
 import {
@@ -49,7 +51,7 @@ export const DataExtractionDashboard: React.FC<DataExtractionDashboardProps> = (
   const fetchAttention = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/attention`);
+      const response = await fetchWithAuth(apiUrl(`/api/sessions/${sessionId}/attention`));
       const data = await response.json();
       setAttention(data);
     } catch (error) {
@@ -72,7 +74,7 @@ export const DataExtractionDashboard: React.FC<DataExtractionDashboardProps> = (
   const simulateConversation = async () => {
     setIsSimulating(true);
     try {
-      const response = await fetch('/api/simulate/conversation', {
+      const response = await fetchWithAuth(apiUrl('/api/simulate/conversation'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

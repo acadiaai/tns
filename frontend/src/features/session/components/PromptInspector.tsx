@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Eye, FileText, Layout, Copy, Check } from 'lucide-react';
+import { apiUrl } from '../../../config/api';
+import { fetchWithAuth } from '../../../utils/auth-interceptor';
 
 interface PromptInspectorProps {
   currentPhase: string;
@@ -40,7 +42,7 @@ export const PromptInspector: React.FC<PromptInspectorProps> = ({ currentPhase, 
 
   const loadPromptContext = async () => {
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/context`);
+      const response = await fetchWithAuth(apiUrl(`/api/sessions/${sessionId}/context`));
       const data = await response.json();
       setContext(data);
       setLoading(false);
@@ -53,7 +55,7 @@ export const PromptInspector: React.FC<PromptInspectorProps> = ({ currentPhase, 
   const loadRawPromptLog = async () => {
     try {
       // Try to fetch the latest prompt from backend logs endpoint
-      const response = await fetch(`/api/sessions/${sessionId}/latest-prompt`);
+      const response = await fetchWithAuth(apiUrl(`/api/sessions/${sessionId}/latest-prompt`));
       if (response.ok) {
         const text = await response.text();
         setLastPrompt(text);

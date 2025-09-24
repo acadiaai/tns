@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { apiUrl } from '../../../config/api';
+import { fetchWithAuth } from '../../../utils/auth-interceptor';
 
 interface PromptSidebarProps {
   currentPhase: string;
@@ -60,7 +62,7 @@ export const PromptSidebar: React.FC<PromptSidebarProps> = ({ currentPhase, sess
 
   const loadComposedPrompt = async () => {
     try {
-      const res = await fetch(`/api/prompts/compose/${sessionId}?phase=${encodeURIComponent(currentPhase)}`);
+      const res = await fetchWithAuth(apiUrl(`/api/prompts/compose/${sessionId}?phase=${encodeURIComponent(currentPhase)}`));
       if (!res.ok) throw new Error(`Failed to load composed prompt: ${res.status}`);
       const json: ComposedPrompt = await res.json();
       setData(json);
@@ -71,7 +73,7 @@ export const PromptSidebar: React.FC<PromptSidebarProps> = ({ currentPhase, sess
       setPhaseDisplay(resolveVariables(rawPhase));
       setHasChanges(false);
 
-      const cRes = await fetch(`/api/sessions/${sessionId}/context/last`);
+      const cRes = await fetchWithAuth(apiUrl(`/api/sessions/${sessionId}/context/last`));
       if (cRes.ok) {
         const cJson = await cRes.json();
         setConstructed(cJson.constructed_prompt || '');
@@ -84,7 +86,7 @@ export const PromptSidebar: React.FC<PromptSidebarProps> = ({ currentPhase, sess
 
   const loadSystemPrompt = async () => {
     try {
-      const res = await fetch(`/api/prompts?active=true`);
+      const res = await fetchWithAuth(apiUrl(`/api/prompts?active=true`));
       if (!res.ok) return;
       const arr = await res.json();
       if (Array.isArray(arr)) {
@@ -109,7 +111,7 @@ export const PromptSidebar: React.FC<PromptSidebarProps> = ({ currentPhase, sess
     setIsSaving(true);
     try {
       const toSaveRaw = restoreVariables(systemDisplay);
-      const getRes = await fetch(`/api/prompts/${systemId}`);
+      const getRes = await fetchWithAuth(apiUrl(`/api/prompts/${systemId}`));
       if (!getRes.ok) throw new Error('Failed to load system prompt');
       const pr = await getRes.json();
       const req = {
@@ -123,7 +125,7 @@ export const PromptSidebar: React.FC<PromptSidebarProps> = ({ currentPhase, sess
         updated_by: 'frontend',
         create_new_version: true,
       };
-      const putRes = await fetch(`/api/prompts/${systemId}`, {
+      const putRes = await fetchWithAuth(apiUrl(`/api/prompts/${systemId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(req),
@@ -143,7 +145,7 @@ export const PromptSidebar: React.FC<PromptSidebarProps> = ({ currentPhase, sess
     setIsSaving(true);
     try {
       const toSaveRaw = restoreVariables(phaseDisplay);
-      const res = await fetch(`/api/prompts/compose/global?phase=${encodeURIComponent(currentPhase)}`, {
+      const res = await fetchWithAuth(apiUrl(`/api/prompts/compose/global?phase=${encodeURIComponent(currentPhase)}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ therapist_addendum: toSaveRaw, updated_by: 'frontend', create_new_version: true })
