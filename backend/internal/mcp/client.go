@@ -15,6 +15,7 @@ import (
 type MCPClient struct {
 	baseURL    string
 	httpClient *http.Client
+	authToken  string // Bearer token for internal MCP calls
 }
 
 func NewMCPClientFromEnv() *MCPClient {
@@ -32,6 +33,11 @@ func NewMCPClientFromEnv() *MCPClient {
 		baseURL:    base,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
+}
+
+// SetAuthToken sets the bearer token for internal MCP calls
+func (c *MCPClient) SetAuthToken(token string) {
+	c.authToken = token
 }
 
 type jsonrpcRequest struct {
@@ -65,6 +71,11 @@ func (c *MCPClient) call(ctx context.Context, method string, params interface{})
 		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+
+	// Add auth token if available
+	if c.authToken != "" {
+		httpReq.Header.Set("Authorization", c.authToken)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {

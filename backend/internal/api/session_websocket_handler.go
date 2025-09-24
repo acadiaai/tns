@@ -123,11 +123,13 @@ func (s *safeConn) Close() error {
 
 var wsMCPClient *mcp.MCPClient
 
-func getWSMCPClient() *mcp.MCPClient {
+func getWSMCPClient(authToken string) *mcp.MCPClient {
 	if wsMCPClient == nil {
 		wsMCPClient = mcp.NewMCPClientFromEnv()
 		_ = wsMCPClient.Initialize(context.Background())
 	}
+	// Update auth token for this request
+	wsMCPClient.SetAuthToken(authToken)
 	return wsMCPClient
 }
 
@@ -171,6 +173,9 @@ var (
 // SessionWebSocketHandler handles WebSocket connections for therapy sessions
 func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	sessionID := chi.URLParam(r, "id")
+
+	// Capture auth token for internal MCP calls
+	authToken := r.Header.Get("Authorization")
 
 	// Verify session exists
 	var session repository.Session
@@ -311,7 +316,7 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Initialize MCP session state
-	mcpClient := getWSMCPClient()
+	mcpClient := getWSMCPClient(authToken)
 	if mcpClient != nil {
 		args := json.RawMessage(fmt.Sprintf(`{"session_id": "%s", "enabled": true}`, sessionID))
 		_, err := mcpClient.ToolsCall(context.Background(), "therapy_session_enable_auto_mode", args)
@@ -401,7 +406,7 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Process the message
-		go handlePatientMessage(sessionID, messageData)
+		go handlePatientMessage(sessionID, messageData, authToken)
 	}
 }
 
@@ -569,7 +574,7 @@ func monitorSessionActivity(sessionID string) {
 }
 
 // handlePatientMessage processes incoming patient messages via Conductor
-func handlePatientMessage(sessionID string, messageData []byte) {
+func handlePatientMessage(sessionID string, messageData []byte, authToken string) {
 	ctx := context.Background()
 	
 	logger.AppLogger.WithFields(map[string]interface{}{
@@ -600,7 +605,7 @@ func handlePatientMessage(sessionID string, messageData []byte) {
 	if wsMessage.Type == "trigger_checkin" {
 		logger.AppLogger.WithField("session_id", sessionID).Info("Triggering check-in after mindfulness timer")
 		// Handle timer-triggered check-ins via Conductor
-		go handlePatientMessage(sessionID, []byte(`{"type":"message","role":"system","content":"[5 minutes elapsed - trigger check-in]"}`))
+		go handlePatientMessage(sessionID, []byte(`{"type":"message","role":"system","content":"[5 minutes elapsed - trigger check-in]"}`), authToken)
 		return
 	}
 
@@ -896,7 +901,7 @@ func handlePatientMessage(sessionID string, messageData []byte) {
 	}
 
 	// Create initial "executing" tool call messages and execute async
-	mcpClient := getWSMCPClient()
+	mcpClient := getWSMCPClient(authToken)
 	hasTransitionTool := false
 
 	if len(coachResponse.ToolCalls) > 0 {
