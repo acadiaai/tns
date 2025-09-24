@@ -3,13 +3,12 @@
  * and defaulting to localhost backend dev port 8083 when running via Vite.
  */
 export function getWebSocketUrl(path: string): string {
-  // For production domains, use direct Cloud Run backend URL for WebSocket
-  // (Firebase Hosting cannot proxy WebSocket connections)
+  // For production domains, use ws.tns.acadia.sh subdomain
   if (window.location.hostname === 'tns-acadia-sh.web.app' ||
       window.location.hostname === 'tns-acadia-sh.firebaseapp.com' ||
       window.location.hostname === 'tns.acadia.sh') {
-    const wsUrl = `wss://tns-backend-385615458061.us-central1.run.app${path.startsWith('/') ? path : `/${path}`}`;
-    console.log('Using direct Cloud Run WebSocket URL:', wsUrl);
+    const wsUrl = `wss://ws.tns.acadia.sh${path.startsWith('/') ? path : `/${path}`}`;
+    console.log('Using WebSocket subdomain URL:', wsUrl);
     return wsUrl;
   }
 

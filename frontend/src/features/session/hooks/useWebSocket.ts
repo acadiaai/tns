@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getWebSocketUrl } from '../../../utils/ws';
+import { auth } from '../../../services/firebase';
 import {
   MESSAGE_TYPES,
   TypedWebSocketMessage,
@@ -20,14 +21,27 @@ export const useWebSocket = (sessionId: string): WebSocketHook => {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const isConnectingRef = useRef(false);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     // Prevent duplicate connections during StrictMode double-mounting
     if (wsRef.current?.readyState === WebSocket.OPEN || isConnectingRef.current) {
       return;
     }
 
-    const wsUrl = getWebSocketUrl(`/api/sessions/${sessionId}/ws`);
-    console.log('Connecting to WebSocket:', wsUrl);
+    let wsUrl = getWebSocketUrl(`/api/sessions/${sessionId}/ws`);
+
+    // Get auth token and append as query parameter
+    const user = auth?.currentUser;
+    if (user) {
+      try {
+        const token = await user.getIdToken();
+        const separator = wsUrl.includes('?') ? '&' : '?';
+        wsUrl = `${wsUrl}${separator}token=${encodeURIComponent(token)}`;
+      } catch (error) {
+        console.error('Failed to get auth token for WebSocket:', error);
+      }
+    }
+
+    console.log('Connecting to WebSocket:', wsUrl.replace(/token=.*/, 'token=***'));
 
     isConnectingRef.current = true;
     const ws = new WebSocket(wsUrl);

@@ -175,7 +175,19 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	sessionID := chi.URLParam(r, "id")
 
 	// Capture auth token for internal MCP calls
-	authToken := r.Header.Get("Authorization")
+	// First try query parameter (for WebSocket), then header (shouldn't happen for WebSocket)
+	authToken := r.URL.Query().Get("token")
+	if authToken != "" {
+		authToken = "Bearer " + authToken
+		logger.AppLogger.WithField("session_id", sessionID).Info("[AUTH_DEBUG] Token received from query param")
+	} else {
+		authToken = r.Header.Get("Authorization")
+		if authToken != "" {
+			logger.AppLogger.WithField("session_id", sessionID).Info("[AUTH_DEBUG] Token received from header")
+		} else {
+			logger.AppLogger.WithField("session_id", sessionID).Warn("[AUTH_DEBUG] No auth token received")
+		}
+	}
 
 	// Verify session exists
 	var session repository.Session
