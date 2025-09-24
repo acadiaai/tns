@@ -197,11 +197,6 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 		delete(sessionConnections, sessionID)
 		sessionConnMutex.Unlock()
 
-		// Clear the greeting flag so it can be sent on reconnect
-		activeConvMutex.Lock()
-		delete(activeConversations, sessionID+"_greeting")
-		activeConvMutex.Unlock()
-
 		// Stop the session timer
 		stopSessionTimer(sessionID)
 	}()
@@ -341,11 +336,15 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	
 	// Use activeConversations to prevent duplicate greeting generation
 	activeConvMutex.Lock()
+	// If this is a brand new session (no messages), clear any old greeting flag
+	if messageCount == 0 {
+		delete(activeConversations, sessionID+"_greeting")
+	}
 	greetingAlreadyTriggered := activeConversations[sessionID+"_greeting"]
 	if messageCount == 0 && !greetingAlreadyTriggered {
 		activeConversations[sessionID+"_greeting"] = true
 		activeConvMutex.Unlock()
-		
+
 		logger.AppLogger.WithField("session_id", sessionID).Info("[GREETING_DEBUG] No real messages found and no greeting triggered yet, starting initial greeting generation")
 		go generateInitialGreeting(sessionID)
 	} else {
