@@ -47,7 +47,15 @@ Never:
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	db.FirstOrCreate(&systemPrompt, Prompt{Name: "System Policy", Category: "system"})
+	// Force update existing system prompt or create new
+	var existingSystem Prompt
+	if err := db.Where("name = ? AND category = ?", "System Policy", "system").First(&existingSystem).Error; err == nil {
+		systemPrompt.ID = existingSystem.ID
+		systemPrompt.CreatedAt = existingSystem.CreatedAt
+		db.Save(&systemPrompt)
+	} else {
+		db.Create(&systemPrompt)
+	}
 
 	// Phase-specific prompts
 	phasePrompts := []Prompt{
@@ -374,10 +382,18 @@ After your completion message, ask for their final SUDS level and only then coll
 	for _, prompt := range phasePrompts {
 		prompt.CreatedAt = time.Now()
 		prompt.UpdatedAt = time.Now()
-		db.FirstOrCreate(&prompt, Prompt{
-			Name:          prompt.Name,
-			WorkflowPhase: prompt.WorkflowPhase,
-		})
+		// Use Save to update existing prompts instead of FirstOrCreate
+		// This ensures the prompts are always updated with the latest content
+		var existing Prompt
+		if err := db.Where("name = ? AND workflow_phase = ?", prompt.Name, prompt.WorkflowPhase).First(&existing).Error; err == nil {
+			// Update existing prompt
+			prompt.ID = existing.ID
+			prompt.CreatedAt = existing.CreatedAt
+			db.Save(&prompt)
+		} else {
+			// Create new prompt
+			db.Create(&prompt)
+		}
 	}
 
 	return nil
