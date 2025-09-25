@@ -237,7 +237,7 @@ WORKFLOW INSTRUCTIONS:
 2. When ready to check in or transition, FIRST call collect_structured_data with:
    - processing_observations: Key shifts or insights
    - suds_level: Current distress (if checking)
-3. If collect_structured_data returns ready_to_transition: true, THEN call therapy_session_transition with target_phase: "next"
+3. If collect_structured_data returns ready_to_transition: true, the backend will automatically transition to the next phase
 
 Transition when: Natural pause, completion, or need for status check.`,
 			IsActive: true,
@@ -272,7 +272,7 @@ WORKFLOW INSTRUCTIONS:
 1. After assessment, FIRST call collect_structured_data with:
    - suds_current: Current SUDS level
    - continue_processing: true/false based on assessment
-2. If collect_structured_data returns ready_to_transition: true, THEN call therapy_session_transition with target_phase: "next"
+2. If collect_structured_data returns ready_to_transition: true, the backend will automatically transition to the next phase
 
 Collaborative: Include client in decision about next steps.`,
 			IsActive: true,
@@ -305,7 +305,7 @@ WORKFLOW INSTRUCTIONS:
 1. After bilateral stimulation, FIRST call collect_structured_data with:
    - bilateral_effect: Observed response
    - suds_level: Current distress level
-2. If collect_structured_data returns ready_to_transition: true, THEN call therapy_session_transition with target_phase: "next"
+2. If collect_structured_data returns ready_to_transition: true, the backend will automatically transition to the next phase
 
 Record effects and determine if more processing needed.
 
@@ -345,7 +345,7 @@ WORKFLOW INSTRUCTIONS:
 1. After identifying positive resource, FIRST call collect_structured_data with:
    - positive_belief: The belief or resource
    - voc_score: How true it feels (optional)
-2. If collect_structured_data returns ready_to_transition: true, THEN call therapy_session_transition with target_phase: "next"
+2. If collect_structured_data returns ready_to_transition: true, the backend will automatically transition to the next phase
 
 Transition when: Resource feels integrated and stable.`,
 			IsActive: true,

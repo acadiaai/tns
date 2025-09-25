@@ -418,8 +418,6 @@ func buildPhaseContextFromStateMachine(sessionID string, currentPhase string) st
 		sb.WriteString("- collect_structured_data(session_id, data) - Submit structured data including observations\n")
 		sb.WriteString(fmt.Sprintf("  Current phase expects: %s\n", strings.Join(schemaInfo, ", ")))
 		sb.WriteString("  Returns: ready_to_transition (bool) - if true, phase will auto-transition\n")
-		sb.WriteString("- therapy_session_transition(session_id, target_phase, reason) - Transition to next phase\n")
-		sb.WriteString("  Use 'next' as target_phase to move to the next phase in sequence\n")
 		sb.WriteString("\nIMPORTANT: Only use these exact tool names. Any other tool will fail immediately.\n")
 	}
 
