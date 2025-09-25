@@ -63,18 +63,18 @@ export const TherapyNavigationSystem: React.FC = () => {
   const [therapists, setTherapists] = useState<Therapist[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [backendVersion, setBackendVersion] = useState<string>('');
+  const [systemVersion, setSystemVersion] = useState<string>('');
 
-  // Fetch backend version for smoke test verification
+  // Fetch system version (git commit) for deployment verification
   useEffect(() => {
     const fetchVersion = async () => {
       try {
         const response = await fetch(apiUrl('/version'));
         const data = await response.json();
-        setBackendVersion(data.build_time || 'unknown');
+        setSystemVersion(data.git_commit || 'unknown');
       } catch (error) {
-        console.error('Failed to fetch backend version:', error);
-        setBackendVersion('offline');
+        console.error('Failed to fetch system version:', error);
+        setSystemVersion('offline');
       }
     };
     fetchVersion();
@@ -362,11 +362,11 @@ export const TherapyNavigationSystem: React.FC = () => {
             />
           </div>
 
-          {/* Version indicator for smoke test */}
-          {backendVersion && (
+          {/* System version indicator for deployment verification */}
+          {systemVersion && (
             <div className="mt-auto pt-4 px-2">
               <div className="text-xs text-white/40 font-mono">
-                Backend: {backendVersion.split('_')[1] || backendVersion}
+                System Version: {systemVersion}
               </div>
             </div>
           )}

@@ -16,6 +16,10 @@ RUN npm run build-only
 # Backend build stage
 FROM --platform=linux/amd64 golang:1.23 AS backend-builder
 
+# Accept git commit as build argument
+ARG GIT_COMMIT=unknown
+ARG BUILD_TIME
+
 WORKDIR /app
 
 # Copy go mod files
@@ -28,8 +32,11 @@ COPY backend/ .
 # Copy frontend build to embed in Go binary
 COPY --from=frontend-builder /frontend/dist ./internal/api/static
 
-# Build the application (no CGO needed with pure Go SQLite driver!)
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o main cmd/server/main.go
+# Build the application with git commit and build time injected
+RUN CGO_ENABLED=0 go build -ldflags="-s -w \
+    -X 'therapy-navigation-system/internal/api.GitCommit=${GIT_COMMIT}' \
+    -X 'therapy-navigation-system/internal/api.BuildTime=${BUILD_TIME}'" \
+    -o main cmd/server/main.go
 
 # Runtime stage
 FROM --platform=linux/amd64 debian:bookworm-slim
