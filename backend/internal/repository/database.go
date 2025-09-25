@@ -6,8 +6,8 @@ import (
 	"therapy-navigation-system/internal/logger"
 	"therapy-navigation-system/internal/storage"
 
+	"github.com/glebarez/sqlite" // Pure Go SQLite driver
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 

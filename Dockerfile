@@ -28,8 +28,8 @@ COPY backend/ .
 # Copy frontend build to embed in Go binary
 COPY --from=frontend-builder /frontend/dist ./internal/api/static
 
-# Build the application with CGO for SQLite
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o main cmd/server/main.go
+# Build the application (no CGO needed with pure Go SQLite driver!)
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o main cmd/server/main.go
 
 # Runtime stage
 FROM --platform=linux/amd64 debian:bookworm-slim
