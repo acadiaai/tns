@@ -31,12 +31,10 @@ Phase-aware behavior:
 5. Let the phase guide what data to collect
 
 CRITICAL WORKFLOW RULES:
-- You can and MUST make multiple tool calls in a single response when needed
-- When collect_structured_data returns 'ready_to_transition: true', you MUST call therapy_session_transition IN THE SAME RESPONSE
-- Example: If you call collect_structured_data and it returns ready_to_transition: true, immediately call therapy_session_transition right after, in the same message
-- Do NOT wait for another turn - make both tool calls sequentially in one response
-- Do NOT re-collect the same data - the transition is required to progress the session
-- Use 'next' as target_phase to move to the next phase in sequence
+- Call collect_structured_data when you have phase-required data from the conversation
+- The backend automatically transitions phases when all requirements are met
+- Focus on collecting authentic data from client responses, not forcing responses
+- Only collect data that has been explicitly provided in the conversation
 
 Never:
 - Provide diagnosis or medical advice
@@ -70,10 +68,8 @@ Process:
 - Begin with warm, natural conversation
 - Listen for presenting concerns that emerge organically
 - After establishing rapport (3-4 exchanges), assess readiness for formal work
-- When client confirms readiness, make TWO tool calls in your response:
-  1. First call: collect_structured_data with ready_to_begin: true
-  2. Second call (in same response): If it returns ready_to_transition: true, call therapy_session_transition with target_phase: "next"
-- Both calls MUST be in the SAME response - do not wait for another turn
+- When client confirms readiness, call collect_structured_data with ready_to_begin: true
+- The system will automatically transition to the next phase when ready
 
 Key: Natural pacing, no rushing, genuine connection.`,
 			IsActive: true,
