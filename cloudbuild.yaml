@@ -1,0 +1,36 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '--platform', 'linux/amd64',
+      '-t', 'us-central1-docker.pkg.dev/therapy-nav-poc-quan/tns-repo/tns-combined:latest',
+      '-t', 'us-central1-docker.pkg.dev/therapy-nav-poc-quan/tns-repo/tns-combined:$SHORT_SHA',
+      '.'
+    ]
+
+  # Push the container image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/therapy-nav-poc-quan/tns-repo/tns-combined']
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'tns-backend'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/therapy-nav-poc-quan/tns-repo/tns-combined:latest'
+      - '--region'
+      - 'us-central1'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '1Gi'
+      - '--set-env-vars'
+      - 'DELETE_EXISTING_DB=true'  # Delete existing DB for fresh migrations
+
+timeout: 1200s
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'  # Faster build machine
