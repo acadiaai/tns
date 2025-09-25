@@ -12,8 +12,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Global build info (set by main.go)
-var BuildTime = "development"
+// Build metadata - set at compile time via -ldflags
+var (
+	BuildTime = "development"
+	GitCommit = "unknown"
+)
 
 // HealthHandler returns service health status
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,6 +34,7 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 func VersionHandler(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"build_time": BuildTime,
+		"git_commit": GitCommit,
 		"timestamp":  time.Now(),
 		"status":     "healthy",
 		"service":    "therapy-navigation-system",
