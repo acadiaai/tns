@@ -29,13 +29,24 @@ func int64Ptr(i int64) *int64 {
 func convertPhases(repoPhases []repository.Phase) []shared.Phase {
 	phases := make([]shared.Phase, len(repoPhases))
 	for i, p := range repoPhases {
+		// Default to conversational if not set
+		phaseType := p.Type
+		if phaseType == "" {
+			phaseType = string(repository.PhaseTypeConversational)
+		}
+
 		phases[i] = shared.Phase{
-			ID:          p.ID,
-			DisplayName: p.DisplayName,
-			Description: p.Description,
-			Color:       p.Color,
-			Icon:        p.Icon,
-			PhaseData:   convertPhaseData(nil), // Will be populated separately if needed
+			ID:                  p.ID,
+			DisplayName:         p.DisplayName,
+			Description:         p.Description,
+			Color:               p.Color,
+			Icon:                p.Icon,
+			PhaseData:           convertPhaseData(nil), // Will be populated separately if needed
+			Type:                phaseType,
+			WaitDurationSeconds: p.WaitDurationSeconds,
+			PreWaitMessage:      p.PreWaitMessage,
+			PostWaitPrompt:      p.PostWaitPrompt,
+			VisualizationType:   p.VisualizationType,
 		}
 	}
 	return phases
@@ -328,14 +339,16 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Initialize MCP session state
-	mcpClient := getWSMCPClient(authToken)
-	if mcpClient != nil {
-		args := json.RawMessage(fmt.Sprintf(`{"session_id": "%s", "enabled": true}`, sessionID))
-		_, err := mcpClient.ToolsCall(context.Background(), "therapy_session_enable_auto_mode", args)
-		if err != nil {
-			logger.AppLogger.WithError(err).Warn("Failed to initialize MCP session state")
-		}
-	}
+	// Removed therapy_session_enable_auto_mode - this tool no longer exists
+	// Only collect_structured_data is available now
+	// mcpClient := getWSMCPClient(authToken)
+	// if mcpClient != nil {
+	// 	args := json.RawMessage(fmt.Sprintf(`{"session_id": "%s", "enabled": true}`, sessionID))
+	// 	_, err := mcpClient.ToolsCall(context.Background(), "therapy_session_enable_auto_mode", args)
+	// 	if err != nil {
+	// 		logger.AppLogger.WithError(err).Warn("Failed to initialize MCP session state")
+	// 	}
+	// }
 
 	// Send initial status
 	broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
@@ -907,7 +920,14 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 			return
 		}
 
-		logger.AppLogger.WithField("session_id", sessionID).Info("[MESSAGE_DEBUG] Conversation message created")
+		// Broadcast the saved message immediately
+		broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
+			Type:      "message",
+			Message:   convertMessage(therapistMsg),
+			Timestamp: time.Now(),
+		})
+
+		logger.AppLogger.WithField("session_id", sessionID).Info("[MESSAGE_DEBUG] Conversation message created and broadcast")
 	} else {
 		logger.AppLogger.WithField("session_id", sessionID).Info("[MESSAGE_DEBUG] No response text, skipping conversation message")
 	}
@@ -1070,21 +1090,7 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 		// }
 	}
 
-	// Broadcast the response (if there was conversation text)
-	if responseText != "" {
-		broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
-			Type:      "message",
-			Message:   &shared.Message{
-				ID:        fmt.Sprintf("msg_%d", time.Now().UnixNano()),
-				SessionID: sessionID,
-				Role:      "coach",
-				Content:   responseText,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			Timestamp: time.Now(),
-		})
-	}
+	// Message already broadcast above when saved to database
 	
 	logger.AppLogger.WithField("session_id", sessionID).Info("✅ CLEAN COACH RESPONSE COMPLETED")
 }

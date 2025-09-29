@@ -39,6 +39,7 @@ func RunMigrations(db *gorm.DB) error {
 		{ID: "004", Name: "phase_data_requirements", Func: migrate004PhaseData},
 		// NOTE: migrations 005 and 006 for dynamic MCP tools were removed - simplified MCP layer
 		{ID: "007", Name: "therapy_prompts", Func: migrate007Prompts},
+		{ID: "008", Name: "phase_types", Func: migrate008PhaseTypes},
 	}
 
 	// Run each migration if not already applied

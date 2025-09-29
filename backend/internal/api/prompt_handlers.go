@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"therapy-navigation-system/internal/logger"
+	"therapy-navigation-system/internal/repository"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -169,4 +170,109 @@ func GetSessionPromptsRawText(w http.ResponseWriter, r *http.Request) {
 	// Return as plain text
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(output))
+}
+
+// GetSystemPromptHandler returns the current system prompt
+// @Summary Get system prompt
+// @Description Retrieve the current system prompt configuration
+// @Tags prompts
+// @Produce json
+// @Success 200 {object} repository.Prompt
+// @Router /api/system-prompt [get]
+func GetSystemPromptHandler(w http.ResponseWriter, r *http.Request) {
+	var prompt repository.Prompt
+
+	// Get the active system prompt from the prompts table
+	if err := repository.DB.Where("category = ? AND is_system = ? AND is_active = ?", "system", true, true).
+		Order("version DESC").
+		First(&prompt).Error; err != nil {
+
+		// Return default if none exists
+		if err.Error() == "record not found" {
+			prompt = repository.Prompt{
+				ID:          "system-prompt-default",
+				Name:        "System Prompt",
+				Description: "Main system prompt for therapy sessions",
+				Category:    "system",
+				Content:     "You are a supportive brainspotting therapy assistant.",
+				Version:     1,
+				IsActive:    true,
+				IsSystem:    true,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(prompt)
+			return
+		}
+
+		logger.AppLogger.WithError(err).Error("Failed to fetch system prompt")
+		http.Error(w, "Failed to fetch system prompt", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(prompt)
+}
+
+// UpdateSystemPromptRequest represents a request to update the system prompt
+type UpdateSystemPromptRequest struct {
+	Content     string `json:"content"`
+	Description string `json:"description,omitempty"`
+}
+
+// UpdateSystemPromptHandler updates the system prompt
+// @Summary Update system prompt
+// @Description Update the system prompt configuration
+// @Tags prompts
+// @Accept json
+// @Produce json
+// @Param request body UpdateSystemPromptRequest true "Update request"
+// @Success 200 {object} repository.Prompt
+// @Router /api/system-prompt [put]
+func UpdateSystemPromptHandler(w http.ResponseWriter, r *http.Request) {
+	var req UpdateSystemPromptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	// Get current system prompt
+	var currentPrompt repository.Prompt
+	err := repository.DB.Where("category = ? AND is_system = ? AND is_active = ?", "system", true, true).
+		Order("version DESC").
+		First(&currentPrompt).Error
+
+	var newVersion int = 1
+	if err == nil {
+		// Deactivate current prompt
+		currentPrompt.IsActive = false
+		repository.DB.Save(&currentPrompt)
+		newVersion = currentPrompt.Version + 1
+	}
+
+	// Create new version
+	newPrompt := repository.Prompt{
+		ID:          fmt.Sprintf("system-prompt-v%d", newVersion),
+		Name:        "System Prompt",
+		Description: req.Description,
+		Category:    "system",
+		Content:     req.Content,
+		Version:     newVersion,
+		IsActive:    true,
+		IsSystem:    true,
+	}
+
+	if req.Description == "" {
+		newPrompt.Description = fmt.Sprintf("System prompt for therapy sessions (v%d)", newVersion)
+	}
+
+	// Save new prompt
+	if err := repository.DB.Create(&newPrompt).Error; err != nil {
+		logger.AppLogger.WithError(err).Error("Failed to save system prompt")
+		http.Error(w, "Failed to save system prompt", http.StatusInternalServerError)
+		return
+	}
+
+	logger.AppLogger.WithField("version", newVersion).Info("System prompt updated")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(newPrompt)
 }

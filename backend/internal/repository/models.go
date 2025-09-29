@@ -49,6 +49,12 @@ type Session struct {
 	PhaseStartTime       time.Time `json:"phase_start_time"`
 	PhaseTransitionCount int       `json:"phase_transition_count" gorm:"default:0"`
 
+	// Mindfulness tracking for Stage 4/5 loops
+	TotalMindfulnessSeconds int    `json:"total_mindfulness_seconds" gorm:"default:0"`
+	MindfulnessLoopCount    int    `json:"mindfulness_loop_count" gorm:"default:0"`
+	LastSudsValue           int    `json:"last_suds_value" gorm:"default:-1"`
+	PhaseHistory            string `json:"phase_history" gorm:"type:text"` // JSON array of phase timings
+
 	// Timestamps
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -90,6 +96,14 @@ type Phase struct {
 	Icon                       string    `json:"icon" gorm:"type:text"`
 	Color                      string    `json:"color" gorm:"type:text"`
 	DurationSeconds            int       `json:"duration_seconds"`
+
+	// Phase type fields for timed waiting periods
+	Type                string `json:"type" gorm:"type:varchar(50);default:'conversational'"` // conversational or timed_waiting
+	WaitDurationSeconds int    `json:"wait_duration_seconds" gorm:"default:0"` // Duration for timed_waiting phases
+	PreWaitMessage      string `json:"pre_wait_message" gorm:"type:text"` // Message shown before waiting
+	PostWaitPrompt      string `json:"post_wait_prompt" gorm:"type:text"` // Prompt shown after waiting
+	VisualizationType   string `json:"visualization_type" gorm:"type:varchar(50)"` // breathing_circle, ocean_waves, etc.
+
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 

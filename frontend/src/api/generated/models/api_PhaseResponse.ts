@@ -31,6 +31,14 @@ export type api_PhaseResponse = {
      */
     position?: number;
     /**
+     * Prompt shown after waiting
+     */
+    post_wait_prompt?: string;
+    /**
+     * Message shown before waiting
+     */
+    pre_wait_message?: string;
+    /**
      * Recommended time for phase
      */
     recommended_duration_seconds?: number;
@@ -38,6 +46,18 @@ export type api_PhaseResponse = {
     transitions?: Array<repository_PhaseTransition>;
     transitions_from?: Array<repository_PhaseTransition>;
     transitions_to?: Array<repository_PhaseTransition>;
+    /**
+     * Phase type fields for timed waiting periods
+     */
+    type?: string;
     updated_at?: string;
+    /**
+     * breathing_circle, ocean_waves, etc.
+     */
+    visualization_type?: string;
+    /**
+     * Duration for timed_waiting phases
+     */
+    wait_duration_seconds?: number;
 };
 

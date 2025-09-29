@@ -9,102 +9,107 @@ import (
 func migrate004PhaseData(db *gorm.DB) error {
 	requirements := []PhaseData{
 		// Pre-session
-		{ID: "pre_session_consent_given", PhaseID: "pre_session", Name: "consent_given", Required: true,
+		{ID: "consent_given", PhaseID: "pre_session", Name: "consent_given", Required: true,
 			Description: "Explicit consent to begin session",
 			Schema: `{"type": "boolean", "description": "Explicit consent to begin session"}`},
 
-		// Issue decision
-		{ID: "issue_decision_selected_issue", PhaseID: "issue_decision", Name: "selected_issue", Required: true,
+		// Stage 1: Deciding an issue
+		{ID: "selected_issue", PhaseID: "stage_1_deciding_issue", Name: "selected_issue", Required: true,
 			Description: "The issue to work on",
 			Schema: `{"type": "string", "description": "The issue to work on"}`},
-		{ID: "issue_decision_issue_intensity", PhaseID: "issue_decision", Name: "issue_intensity", Required: true,
+		{ID: "issue_intensity", PhaseID: "stage_1_deciding_issue", Name: "issue_intensity", Required: true,
 			Description: "Initial intensity (0-10)",
 			Schema: `{"type": "integer", "min": 0, "max": 10, "description": "Initial intensity"}`},
-		{ID: "issue_decision_activation_present", PhaseID: "issue_decision", Name: "activation_present", Required: false,
-			Description: "Whether activation is present",
-			Schema: `{"type": "boolean", "description": "Whether activation is present"}`},
 
-		// Information gathering
-		{ID: "information_gathering_suds_level", PhaseID: "information_gathering", Name: "suds_level", Required: true,
+		// Stage 2: Information gathering
+		{ID: "initial_suds", PhaseID: "stage_2_information_gathering", Name: "suds_level", Required: true,
 			Description: "Subjective Units of Distress (0-10)",
 			Schema: `{"type": "integer", "min": 0, "max": 10, "description": "Subjective Units of Distress"}`},
-		{ID: "information_gathering_history", PhaseID: "information_gathering", Name: "history", Required: false,
+		{ID: "history", PhaseID: "stage_2_information_gathering", Name: "history", Required: false,
 			Description: "When issue started",
 			Schema: `{"type": "string", "description": "When issue started"}`},
-		{ID: "information_gathering_negative_cognition", PhaseID: "information_gathering", Name: "negative_cognition", Required: false,
+		{ID: "negative_cognition", PhaseID: "stage_2_information_gathering", Name: "negative_cognition", Required: false,
 			Description: "Negative belief about self",
 			Schema: `{"type": "string", "description": "Negative belief about self"}`},
 
-		// Body scan
-		{ID: "body_scan_body_location", PhaseID: "body_scan", Name: "body_location", Required: true,
+		// Stage 3: Activating & Setup (includes body scan and eye position)
+		{ID: "body_location", PhaseID: "stage_3_activating_setup", Name: "body_location", Required: true,
 			Description: "Where activation is felt in body",
 			Schema: `{"type": "string", "description": "Where activation is felt in body"}`},
-		{ID: "body_scan_sensation_quality", PhaseID: "body_scan", Name: "sensation_quality", Required: false,
+		{ID: "sensation_quality", PhaseID: "stage_3_activating_setup", Name: "sensation_quality", Required: false,
 			Description: "Quality of sensation",
 			Schema: `{"type": "string", "description": "Quality of sensation"}`},
-		{ID: "body_scan_activation_level", PhaseID: "body_scan", Name: "activation_level", Required: true,
+		{ID: "activation_level", PhaseID: "stage_3_activating_setup", Name: "activation_level", Required: true,
 			Description: "Body activation level (0-10)",
 			Schema: `{"type": "integer", "min": 0, "max": 10, "description": "Body activation level"}`},
 
-		// Eye position
-		{ID: "eye_position_brainspot_x", PhaseID: "eye_position", Name: "brainspot_x", Required: true,
+		// Stage 3 continued: Eye position
+		{ID: "brainspot_x", PhaseID: "stage_3_activating_setup", Name: "brainspot_x", Required: true,
 			Description: "Horizontal eye position (-1 to 1)",
 			Schema: `{"type": "number", "min": -1, "max": 1, "description": "Horizontal eye position"}`},
-		{ID: "eye_position_brainspot_y", PhaseID: "eye_position", Name: "brainspot_y", Required: true,
+		{ID: "brainspot_y", PhaseID: "stage_3_activating_setup", Name: "brainspot_y", Required: true,
 			Description: "Vertical eye position (-1 to 1)",
 			Schema: `{"type": "number", "min": -1, "max": 1, "description": "Vertical eye position"}`},
-		{ID: "eye_position_spot_type", PhaseID: "eye_position", Name: "spot_type", Required: false,
+		{ID: "spot_type", PhaseID: "stage_3_activating_setup", Name: "spot_type", Required: false,
 			Description: "Type of brainspot (activation or resource)",
 			Schema: `{"type": "string", "enum": ["activation", "resource"], "description": "Type of brainspot"}`},
 
-		// Focused mindfulness
-		{ID: "focused_mindfulness_processing_time", PhaseID: "focused_mindfulness", Name: "processing_time_minutes", Required: true,
+		// Stage 4: Focused mindfulness
+		{ID: "processing_time", PhaseID: "stage_4_focused_mindfulness", Name: "processing_time_minutes", Required: true,
 			Description: "Processing duration in minutes",
 			Schema: `{"type": "integer", "min": 1, "max": 30, "description": "Processing duration in minutes"}`},
-		{ID: "focused_mindfulness_observations", PhaseID: "focused_mindfulness", Name: "processing_observations", Required: false,
+		{ID: "observations", PhaseID: "stage_4_focused_mindfulness", Name: "processing_observations", Required: false,
 			Description: "Key observations during processing",
 			Schema: `{"type": "string", "description": "Key observations during processing"}`},
-		{ID: "focused_mindfulness_shifts", PhaseID: "focused_mindfulness", Name: "shifts_noted", Required: false,
+		{ID: "shifts_noted", PhaseID: "stage_4_focused_mindfulness", Name: "shifts_noted", Required: false,
 			Description: "Shifts or changes observed",
 			Schema: `{"type": "string", "description": "Shifts or changes observed"}`},
 
-		// Status check
-		{ID: "status_check_suds_current", PhaseID: "status_check", Name: "suds_current", Required: true,
+		// Stage 5: Checking In
+		{ID: "current_suds", PhaseID: "stage_5_checking_in", Name: "suds_current", Required: true,
 			Description: "Current SUDS level (0-10)",
 			Schema: `{"type": "integer", "min": 0, "max": 10, "description": "Current SUDS level"}`},
-		{ID: "status_check_next_action", PhaseID: "status_check", Name: "next_action", Required: true,
+		{ID: "next_action", PhaseID: "stage_5_checking_in", Name: "next_action", Required: true,
 			Description: "Next phase to transition to",
-			Schema: `{"type": "string", "enum": ["focused_mindfulness", "squeeze_hug", "positive_installation", "complete"], "description": "Next phase to transition to"}`},
+			Schema: `{"type": "string", "enum": ["continue_processing", "micro_reprocessing", "squeeze_lemon"], "description": "Next phase to transition to"}`},
+		{ID: "check_in_observations", PhaseID: "stage_5_checking_in", Name: "observations", Required: false,
+			Description: "What did you observe during processing?",
+			Schema: `{"type": "string", "description": "Observations from processing"}`},
 
-		// Squeeze hug (bilateral stimulation)
-		{ID: "squeeze_hug_bilateral_completed", PhaseID: "squeeze_hug", Name: "bilateral_completed", Required: true,
-			Description: "Bilateral stimulation completed",
-			Schema: `{"type": "boolean", "description": "Bilateral stimulation completed"}`},
-		{ID: "squeeze_hug_bilateral_effect", PhaseID: "squeeze_hug", Name: "bilateral_effect", Required: false,
-			Description: "Effect of bilateral stimulation",
-			Schema: `{"type": "string", "description": "Effect of bilateral stimulation"}`},
-		{ID: "squeeze_hug_suds_after", PhaseID: "squeeze_hug", Name: "suds_after_bilateral", Required: false,
-			Description: "SUDS after bilateral (0-10)",
-			Schema: `{"type": "integer", "min": 0, "max": 10, "description": "SUDS after bilateral"}`},
+		// Stage 6: Micro-reprocessing
+		{ID: "micro_technique", PhaseID: "stage_6_micro_reprocessing", Name: "technique_used", Required: true,
+			Description: "De-escalation technique applied",
+			Schema: `{"type": "string", "enum": ["bilateral_sound", "breathing", "grounding", "resource_spot"], "description": "Technique used for de-escalation"}`},
+		{ID: "micro_effectiveness", PhaseID: "stage_6_micro_reprocessing", Name: "effectiveness", Required: false,
+			Description: "How effective was the technique?",
+			Schema: `{"type": "string", "description": "Effectiveness of the technique"}`},
 
-		// Positive installation
-		{ID: "positive_installation_positive_belief", PhaseID: "positive_installation", Name: "positive_belief", Required: true,
+		// Stage 7: Squeeze Lemon
+		{ID: "detailed_exposure", PhaseID: "stage_7_squeeze_lemon", Name: "detailed_events", Required: true,
+			Description: "Detailed exposure to confirm zero activation",
+			Schema: `{"type": "string", "description": "Description of detailed exposure"}`},
+		{ID: "final_activation", PhaseID: "stage_7_squeeze_lemon", Name: "activation_level", Required: true,
+			Description: "Final activation level (should be 0)",
+			Schema: `{"type": "integer", "min": 0, "max": 10, "description": "Final activation level"}`},
+
+		// Stage 8: Expansion
+		{ID: "positive_cognition", PhaseID: "stage_8_expansion", Name: "positive_cognition", Required: true,
 			Description: "Positive belief to install",
-			Schema: `{"type": "string", "description": "Positive belief to install"}`},
-		{ID: "positive_installation_voc_rating", PhaseID: "positive_installation", Name: "voc_rating", Required: false,
+			Schema: `{"type": "string", "description": "Positive belief about self"}`},
+		{ID: "voc_rating", PhaseID: "stage_8_expansion", Name: "voc_rating", Required: true,
 			Description: "Validity of Cognition (1-7)",
-			Schema: `{"type": "integer", "min": 1, "max": 7, "description": "Validity of Cognition"}`},
+			Schema: `{"type": "integer", "min": 1, "max": 7, "description": "How true does the positive cognition feel?"}`},
+		{ID: "future_template", PhaseID: "stage_8_expansion", Name: "future_template", Required: false,
+			Description: "Future situations to imagine with new state",
+			Schema: `{"type": "string", "description": "Future scenarios to integrate"}`},
 
-		// Complete
-		{ID: "complete_final_suds", PhaseID: "complete", Name: "final_suds", Required: true,
+		// Completion phase
+		{ID: "final_suds", PhaseID: "completion", Name: "final_suds", Required: true,
 			Description: "Final SUDS level (0-10)",
 			Schema: `{"type": "integer", "min": 0, "max": 10, "description": "Final SUDS level"}`},
-		{ID: "complete_session_notes", PhaseID: "complete", Name: "session_notes", Required: false,
+		{ID: "session_notes", PhaseID: "completion", Name: "session_notes", Required: false,
 			Description: "Session summary and notes",
 			Schema: `{"type": "string", "description": "Session summary and notes"}`},
-		{ID: "complete_future_focus", PhaseID: "complete", Name: "future_focus", Required: false,
-			Description: "Future template or focus",
-			Schema: `{"type": "string", "description": "Future template or focus"}`},
 	}
 
 	for _, req := range requirements {

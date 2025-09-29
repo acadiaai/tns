@@ -35,6 +35,12 @@ definitions:
       position:
         description: Order of phases
         type: integer
+      post_wait_prompt:
+        description: Prompt shown after waiting
+        type: string
+      pre_wait_message:
+        description: Message shown before waiting
+        type: string
       recommended_duration_seconds:
         description: Recommended time for phase
         type: integer
@@ -54,8 +60,17 @@ definitions:
         items:
           $ref: '#/definitions/repository.PhaseTransition'
         type: array
+      type:
+        description: Phase type fields for timed waiting periods
+        type: string
       updated_at:
         type: string
+      visualization_type:
+        description: breathing_circle, ocean_waves, etc.
+        type: string
+      wait_duration_seconds:
+        description: Duration for timed_waiting phases
+        type: integer
     type: object
   api.PhaseTransitionRequest:
     properties:
@@ -89,6 +104,13 @@ definitions:
       content:
         type: string
       phase_id:
+        type: string
+    type: object
+  api.UpdateSystemPromptRequest:
+    properties:
+      content:
+        type: string
+      description:
         type: string
     type: object
   repository.Phase:
@@ -126,6 +148,12 @@ definitions:
       position:
         description: Order of phases
         type: integer
+      post_wait_prompt:
+        description: Prompt shown after waiting
+        type: string
+      pre_wait_message:
+        description: Message shown before waiting
+        type: string
       recommended_duration_seconds:
         description: Recommended time for phase
         type: integer
@@ -137,8 +165,17 @@ definitions:
         items:
           $ref: '#/definitions/repository.PhaseTransition'
         type: array
+      type:
+        description: Phase type fields for timed waiting periods
+        type: string
       updated_at:
         type: string
+      visualization_type:
+        description: breathing_circle, ocean_waves, etc.
+        type: string
+      wait_duration_seconds:
+        description: Duration for timed_waiting phases
+        type: integer
     type: object
   repository.PhaseConstraint:
     properties:
@@ -631,6 +668,40 @@ paths:
       summary: Get last constructed context for session
       tags:
       - sessions
+  /api/system-prompt:
+    get:
+      description: Retrieve the current system prompt configuration
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/repository.Prompt'
+      summary: Get system prompt
+      tags:
+      - prompts
+    put:
+      consumes:
+      - application/json
+      description: Update the system prompt configuration
+      parameters:
+      - description: Update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateSystemPromptRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/repository.Prompt'
+      summary: Update system prompt
+      tags:
+      - prompts
   /api/tools:
     get:
       description: Retrieve all MCP tools available in the system

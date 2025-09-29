@@ -552,6 +552,16 @@ func (s *MCPServer) handleCollectStructuredData(ctx context.Context, arguments j
 				"auto_transition_success":   true,
 				"transition_result":         result,
 			}
+
+			// Trigger coach message for phase transition
+			// This will be picked up by the WebSocket handler to generate a transition message
+			s.broadcast(map[string]interface{}{
+				"type": "phase_transition_completed",
+				"session_id": args.SessionID,
+				"new_phase": targetPhase,
+				"trigger_coach_message": true,
+				"timestamp": time.Now(),
+			})
 		}
 	} else {
 		s.logger.WithFields(logrus.Fields{

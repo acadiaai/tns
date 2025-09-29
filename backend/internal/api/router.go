@@ -91,6 +91,10 @@ func NewRouter() *chi.Mux {
 		r.Get("/prompts/history/{phaseId}", GetPromptHistoryHandler)
 		r.Put("/prompts/{id}/revert/{versionId}", RevertPromptVersionHandler)
 
+		// System Prompt Editor endpoints
+		r.Get("/system-prompt", GetSystemPromptHandler)
+		r.Put("/system-prompt", UpdateSystemPromptHandler)
+
 	})
 
 	// API Documentation

@@ -3,6 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { api_UpdatePromptRequest } from '../models/api_UpdatePromptRequest';
+import type { api_UpdateSystemPromptRequest } from '../models/api_UpdateSystemPromptRequest';
 import type { repository_Prompt } from '../models/repository_Prompt';
 
 import type { CancelablePromise } from '../core/CancelablePromise';
@@ -88,6 +89,36 @@ export class PromptsService {
                 'id': id,
                 'versionId': versionId,
             },
+        });
+    }
+
+    /**
+     * Get system prompt
+     * Retrieve the current system prompt configuration
+     * @returns repository_Prompt OK
+     * @throws ApiError
+     */
+    public static getApiSystemPrompt(): CancelablePromise<repository_Prompt> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/system-prompt',
+        });
+    }
+
+    /**
+     * Update system prompt
+     * Update the system prompt configuration
+     * @param request Update request
+     * @returns repository_Prompt OK
+     * @throws ApiError
+     */
+    public static putApiSystemPrompt(
+        request: api_UpdateSystemPromptRequest,
+    ): CancelablePromise<repository_Prompt> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/system-prompt',
+            body: request,
         });
     }
 
