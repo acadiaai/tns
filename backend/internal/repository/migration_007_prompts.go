@@ -84,297 +84,210 @@ Key: Natural pacing, no rushing, genuine connection.`,
 		},
 		{
 			ID:            uuid.New().String(),
-			Name:          "issue_decision",
+			Name:          "stage_1_deciding_issue",
 			Category:      "phase",
-			WorkflowPhase: "issue_decision",
+			WorkflowPhase: "stage_1_deciding_issue",
 			Version:       1,
-			Content: `Issue selection phase. Help client identify focus for session.
+			Content: `Deciding an Issue. Help client identify what troubles them.
 
 Therapeutic stance: Curious, non-directive, attentive to emotional resonance.
 
+Questions to explore:
+- "What troubles you?"
+- "What needs improvement in your life?"
+- "What's difficult to achieve?"
+
 Process:
-- Explore what feels most present or activated for the client
 - Listen for emotional charge and somatic cues
 - Notice patterns, recurring themes, or unfinished business
-- When issue emerges with sufficient activation, reflect and confirm
+- When issue emerges, reflect and confirm
+- Ask for intensity level (0-10)
 
-Required data:
-- selected_issue: The identified focus area
-- issue_intensity: Initial activation level (0-10)
-
-🚨 CRITICAL FIELD NAMES - USE EXACTLY THESE 🚨
-- selected_issue: The issue to work on (required)
-- issue_intensity: Initial intensity 0-10 (required)
-
-🚨 CRITICAL WORKFLOW INSTRUCTIONS - MUST FOLLOW EXACTLY 🚨
-1. When client identifies their issue and intensity, you MUST call collect_structured_data with EXACTLY these field names:
-
-   EXAMPLE CORRECT CALL:
-   collect_structured_data({
-     "session_id": "session-id-here",
-     "data": {
-       "selected_issue": "Fear of judgment and imposter syndrome related to presentation",
-       "issue_intensity": 7
-     }
-   })
-
-2. ❌ NEVER use these wrong field names:
-   - "issue", "issue_focus", "focus", "problem", "concern"
-   - "anxiety_level", "distress_level", "activation"
-
-3. ✅ ALWAYS use these exact field names:
-   - "selected_issue" (for the issue description)
-   - "issue_intensity" (for the 0-10 intensity)
-
-4. The auto-transition system will handle phase progression automatically when both required fields are collected
-
-Transition when: Issue is clear and client ready to explore deeper.`,
+The system will guide you through collecting the required information.`,
 			IsActive: true,
 		},
 		{
 			ID:            uuid.New().String(),
-			Name:          "information_gathering",
+			Name:          "stage_2_information_gathering",
 			Category:      "phase",
-			WorkflowPhase: "information_gathering",
+			WorkflowPhase: "stage_2_information_gathering",
 			Version:       1,
-			Content: `Information gathering phase. Deepen understanding of the issue.
+			Content: `Information Gathering. Deepen understanding of the issue.
 
 Therapeutic approach: Gentle exploration without overwhelming.
 
 Explore:
-- When this started or first memory
+- History: "When did this start? First memory?"
+- Current status: "How does this impact your daily life?"
+- Desired outcome: "What would change look like?"
 - Current distress level (SUDS 0-10)
 - Any negative beliefs about self
-- What makes it better or worse
-- Historical context and current impact
-
-WORKFLOW:
-1. Call get_phase_context(session_id) for current requirements
-2. Collect required data via collect_structured_data
-3. System will auto-transition when complete
 
 Balance: Gather context without over-intellectualizing.`,
 			IsActive: true,
 		},
 		{
 			ID:            uuid.New().String(),
-			Name:          "body_scan",
+			Name:          "stage_3_activating_setup",
 			Category:      "phase",
-			WorkflowPhase: "body_scan",
+			WorkflowPhase: "stage_3_activating_setup",
 			Version:       1,
-			Content: `Body scan phase. Locate somatic activation related to the issue.
-
-Therapeutic approach: Mindful, curious observation of body sensations.
-
-Guide awareness to:
-- Where activation is felt most strongly in the body
-- Quality of sensations (tight, hot, cold, numb, buzzing, etc.)
-- Intensity of body activation (0-10 scale)
-
-Key principle: The body holds the activation; we're mapping its geography.
-
-WORKFLOW:
-1. Call get_phase_context(session_id) for requirements
-2. Collect somatic data via collect_structured_data
-3. System will auto-transition when complete
-
-Transition when: Clear somatic activation located and described.`,
-			IsActive: true,
-		},
-		{
-			ID:            uuid.New().String(),
-			Name:          "eye_position",
-			Category:      "phase",
-			WorkflowPhase: "eye_position",
-			Version:       1,
-			Content: `Eye position phase. Find the brainspot that maximally activates the issue.
-
-Brainspotting principle: Where you look affects how you feel.
+			Content: `Activating & Setup. Activate the issue and prepare for processing.
 
 Process:
-- Guide slow, systematic eye movements
-- Track changes in activation with each position
-- Refine to find point of maximum resonance
-- Can be activation spot (increases intensity) or resource spot (calms)
+- "Think about the issue we identified"
+- "Notice how it feels in your body right now"
+- "Rate your current SUDs (0-10)"
+- "Where do you feel it most strongly in your body?"
+- "What's the quality of the sensation?"
 
-Technique: Slow scanning horizontally and vertically, noting shifts.
+Then find the brainspot:
+- Guide eye movements systematically
+- "Notice how the feeling changes with each position"
+- Find where activation is strongest
 
-WORKFLOW:
-1. Call get_phase_context(session_id) for requirements
-2. Collect eye position data via collect_structured_data
-3. System will auto-transition when complete
-
-Transition when: Brainspot located and client holding gaze comfortably.`,
+Key: Body holds the activation; eye position affects intensity.`,
 			IsActive: true,
 		},
 		{
 			ID:            uuid.New().String(),
-			Name:          "focused_mindfulness",
+			Name:          "stage_4_focused_mindfulness",
 			Category:      "phase",
-			WorkflowPhase: "focused_mindfulness",
+			WorkflowPhase: "stage_4_focused_mindfulness",
 			Version:       1,
-			Content: `Focused mindfulness phase. Deep processing while maintaining brainspot.
+			Content: `Focused Mindfulness. Deep processing while maintaining brainspot.
 
-Core stance: Attuned presence with minimal intervention. Trust the brain's healing capacity.
+Core stance: Attuned presence with minimal intervention.
 
-The process:
-- Client maintains eye position on brainspot
-- Observes whatever emerges without judgment
-- Processing happens naturally through dual attunement
-- Therapist holds safe, attuned space
+Guidance:
+- "Hold your gaze on that spot"
+- "Stay with it, observe freely"
+- "No need to analyze or control"
+- "Just notice whatever comes up"
 
-Interventions are minimal:
-- Brief reflections when needed
-- Encouragement to stay with process
-- Tracking and mirroring activation levels
+Duration: 3-5 minutes before checking in
 
-Record significant observations: shifts, releases, insights, somatic changes.
-
-Duration: Typically 5-15 minutes per processing segment.
-
-WORKFLOW INSTRUCTIONS:
-1. Allow processing to unfold naturally
-2. When ready to check in or transition, FIRST call collect_structured_data with:
-   - processing_observations: Key shifts or insights
-   - suds_level: Current distress (if checking)
-3. If collect_structured_data returns ready_to_transition: true, the backend will automatically transition to the next phase
-
-Transition when: Natural pause, completion, or need for status check.`,
+Therapist role:
+- Hold safe, attuned space
+- Minimal intervention
+- Brief reflections only if needed
+- Track time for appropriate check-ins`,
 			IsActive: true,
 		},
 		{
 			ID:            uuid.New().String(),
-			Name:          "status_check",
+			Name:          "stage_5_checking_in",
 			Category:      "phase",
-			WorkflowPhase: "status_check",
+			WorkflowPhase: "stage_5_checking_in",
 			Version:       1,
-			Content: `Status check phase. Assess progress and determine next steps.
+			Content: `Checking In. Assess what emerged during processing.
 
-Assessment focus:
-- Current SUDS level compared to baseline
-- Quality of processing experience
-- Sense of completion or need for more
-- Body state and regulation
+Check-in questions:
+- "What did you observe?"
+- "What came up for you?"
+- "Current SUDs level?"
+- "Any shifts or changes?"
 
-Decision tree based on state:
-- High activation (SUDS > 5): Consider more processing
-- Moderate (SUDS 3-5): Bilateral stimulation may help integration
-- Low (SUDS < 3): May be ready for positive resource
-- Stuck/looping: Consider changing brainspot or approach
-- Dysregulated: Focus on grounding and safety
+Decision points:
+- If SUDs > 0 and time < 20min: Return to Focused Mindfulness
+- If SUDs > 0 and time >= 20min: Move to Micro-reprocessing
+- If SUDs = 0: Move to Squeeze Lemon
 
-Required data:
-- suds_current: Current distress level
-- continue_processing: Whether to continue
-- Next phase determination
-
-WORKFLOW INSTRUCTIONS:
-1. After assessment, FIRST call collect_structured_data with:
-   - suds_current: Current SUDS level
-   - continue_processing: true/false based on assessment
-2. If collect_structured_data returns ready_to_transition: true, the backend will automatically transition to the next phase
-
-Collaborative: Include client in decision about next steps.`,
+Record observations and current state for next steps.`,
 			IsActive: true,
 		},
 		{
 			ID:            uuid.New().String(),
-			Name:          "squeeze_hug",
+			Name:          "stage_6_micro_reprocessing",
 			Category:      "phase",
-			WorkflowPhase: "squeeze_hug",
+			WorkflowPhase: "stage_6_micro_reprocessing",
 			Version:       1,
-			Content: `Squeeze hug phase. Bilateral stimulation for integration and regulation.
+			Content: `Micro-reprocessing. De-escalate if SUDs persists after 20 minutes.
 
-Purpose: Bilateral stimulation activates both brain hemispheres for integration.
+Purpose: Help when stuck or looping.
 
-Butterfly hug technique:
-- Arms crossed over chest
-- Alternating shoulder taps
-- Rhythmic, soothing pace
-- Client-controlled intensity
+Techniques to try:
+- "Let's do a butterfly hug" (bilateral stimulation)
+- "Take some deep breaths with me"
+- "Let's find a resource spot instead"
+- Grounding exercises
+- Change approach if needed
 
-Duration: 30-60 seconds typically, can repeat.
+Duration: Brief intervention (2-3 minutes)
 
-Observe for:
-- Calming/settling responses
-- Emotional releases
-- Cognitive shifts
-- Somatic changes
-
-WORKFLOW INSTRUCTIONS:
-1. After bilateral stimulation, FIRST call collect_structured_data with:
-   - bilateral_effect: Observed response
-   - suds_level: Current distress level
-2. If collect_structured_data returns ready_to_transition: true, the backend will automatically transition to the next phase
-
-Record effects and determine if more processing needed.
-
-Transition based on: Client's response and current state.`,
+After technique: "Let's return to the brainspot and continue"`,
 			IsActive: true,
 		},
 		{
 			ID:            uuid.New().String(),
-			Name:          "positive_installation",
+			Name:          "stage_7_squeeze_lemon",
 			Category:      "phase",
-			WorkflowPhase: "positive_installation",
+			WorkflowPhase: "stage_7_squeeze_lemon",
 			Version:       1,
-			Content: `Positive installation phase. Strengthen adaptive beliefs and resources.
+			Content: `Squeeze Lemon. Test zero activation with detailed exposure.
 
-Purpose: Install positive cognitions when activation has decreased.
+Purpose: Confirm SUDs = 0 is stable.
+
+Instructions:
+- "Now that you're at zero, let's test it"
+- "Imagine the issue in vivid detail"
+- "Picture worst-case scenarios"
+- "Really try to activate it"
+- "Notice if any charge returns"
+
+Outcomes:
+- If activation returns: Back to processing
+- If stays at zero: Move to Expansion
+
+Goal: Ensure complete resolution before installing resources.`,
+			IsActive: true,
+		},
+		{
+			ID:            uuid.New().String(),
+			Name:          "stage_8_expansion",
+			Category:      "phase",
+			WorkflowPhase: "stage_8_expansion",
+			Version:       1,
+			Content: `Expansion. Integrate zero activation state into all life spaces.
 
 Process:
-- Identify positive belief or resource that feels true now
-- Can emerge naturally or be suggested
-- Client holds positive cognition with brainspot
-- Notice how it lands in the body
-- Allow it to strengthen and integrate
+- "What positive belief feels true now?"
+- "How true does it feel (1-7)?"
+- "Hold that belief with the brainspot"
+- "Notice how it feels in your body"
 
-Common resources:
-- Safety and protection
-- Capability and strength
-- Self-compassion
-- Connection and support
+Future template:
+- "Imagine using this in your daily life"
+- "See yourself in challenging situations with this resource"
+- "Let it expand to all areas of your life"
 
-Optional VOC (Validity of Cognition): 1-7 scale for how true it feels.
-
-Required data:
-- positive_belief: The resource being installed
-- voc_score (optional): How true it feels
-
-WORKFLOW INSTRUCTIONS:
-1. After identifying positive resource, FIRST call collect_structured_data with:
-   - positive_belief: The belief or resource
-   - voc_score: How true it feels (optional)
-2. If collect_structured_data returns ready_to_transition: true, the backend will automatically transition to the next phase
-
-Transition when: Resource feels integrated and stable.`,
+Goal: Generalize healing beyond this session.`,
 			IsActive: true,
 		},
 		{
 			ID:            uuid.New().String(),
-			Name:          "complete",
+			Name:          "completion",
 			Category:      "phase",
-			WorkflowPhase: "complete",
+			WorkflowPhase: "completion",
 			Version:       1,
-			Content: `You are a skilled Brainspotting coach providing closure for a completed therapy session.
+			Content: `Session Complete. Wrap up and consolidate gains.
 
-FLOW:
-1. First, provide a comprehensive therapeutic completion message (3-4 paragraphs)
-2. Then ask the client for their final SUDS level (0-10)
-3. After they provide final SUDS, call collect_structured_data
+Closing process:
+- Acknowledge the work done today
+- Recognize courage and progress
+- Summarize key insights and shifts
+- Validate the journey
 
-YOUR THERAPEUTIC COMPLETION MESSAGE MUST INCLUDE:
-- Acknowledgment of their journey and courage in exploring difficult material
-- Recognition of the significant progress made (SUDS reduction from 8 to current level)
-- Validation of key insights that emerged during processing
-- Summary of the positive shifts and resources discovered
-- Integration guidance for carrying forward what was learned
-- Encouragement for continued healing and growth
-- Professional closure that honors the depth of their therapeutic work
+Integration guidance:
+- "The processing continues even after we stop"
+- "Be gentle with yourself over the next 24-48 hours"
+- "Notice any dreams or continued shifts"
 
-This is the completion of a profound Brainspotting session. Your message should be warm, validating, and therapeutically complete - honoring their entire journey through all 10 phases of the work.
+Final check:
+- "What's your final SUDS level?"
+- "Any final observations to share?"
 
-After your completion message, ask for their final SUDS level and only then collect the final data.`,
+Provide warm, professional closure honoring their therapeutic work.`,
 			IsActive: true,
 		},
 	}

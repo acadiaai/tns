@@ -168,7 +168,7 @@ export const TherapyNavigationSystem: React.FC = () => {
   const loadPatients = async () => {
     try {
       console.log('📊 Loading patients...');
-      const response = await fetchWithAuth(apiUrl('/api/patients'));
+      const response = await fetchWithAuth(apiUrl('/api/clients'));
       
       if (!response.ok) {
         console.error('❌ Patients API error:', response.status);
@@ -526,8 +526,8 @@ export const TherapyNavigationSystem: React.FC = () => {
                         <PlayCircle className="w-8 h-8 text-green-400/80" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-medium text-white/90 mb-1">🧠 Quick Coach Session</h3>
-                        <p className="text-white/60">Start brainspotting coaching immediately</p>
+                        <h3 className="text-xl font-medium text-white/90 mb-1">New Demo Session</h3>
+                        <p className="text-white/60">Start a demo brainspotting session</p>
                       </div>
                     </div>
                   </motion.button>

@@ -29,9 +29,9 @@ func NewBackupService(dbPath string) (*BackupService, error) {
 	ctx := context.Background()
 
 	// In local development, disable Cloud Storage
-	if os.Getenv("DATABASE_URL") != "" {
-		logger.AppLogger.Info("Production mode: Cloud Storage backup disabled (using managed database)")
-		return &BackupService{disabled: true}, nil
+	if os.Getenv("ENVIRONMENT") == "" || os.Getenv("ENVIRONMENT") == "dev" {
+		logger.AppLogger.Info("Development mode: Cloud Storage backup disabled (using local SQLite)")
+		return &BackupService{disabled: true, dbPath: dbPath}, nil
 	}
 
 	// Try to create Cloud Storage client

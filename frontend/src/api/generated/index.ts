@@ -11,6 +11,7 @@ export type { api_PhaseResponse } from './models/api_PhaseResponse';
 export type { api_PhaseTransitionRequest } from './models/api_PhaseTransitionRequest';
 export type { api_UpdatePhaseRequest } from './models/api_UpdatePhaseRequest';
 export type { api_UpdatePromptRequest } from './models/api_UpdatePromptRequest';
+export type { api_UpdateSystemPromptRequest } from './models/api_UpdateSystemPromptRequest';
 export type { repository_Phase } from './models/repository_Phase';
 export type { repository_PhaseConstraint } from './models/repository_PhaseConstraint';
 export type { repository_PhaseData } from './models/repository_PhaseData';

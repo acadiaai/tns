@@ -53,7 +53,19 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// Check if Firebase auth is initialized
 		if firebaseAuth == nil {
 			logger.AppLogger.Error("Firebase auth not initialized - allowing request for development")
-			next(w, r)
+			// Set default dev context
+			ctx := context.WithValue(r.Context(), "user_email", "dev@localhost")
+			ctx = context.WithValue(ctx, "user_uid", "local-dev-user")
+			next(w, r.WithContext(ctx))
+			return
+		}
+
+		// Skip auth for local development
+		if strings.Contains(r.Host, "localhost") || strings.Contains(r.Host, "127.0.0.1") {
+			logger.AppLogger.Info("Local development mode - bypassing auth")
+			ctx := context.WithValue(r.Context(), "user_email", "dev@localhost")
+			ctx = context.WithValue(ctx, "user_uid", "local-dev-user")
+			next(w, r.WithContext(ctx))
 			return
 		}
 

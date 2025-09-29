@@ -215,10 +215,10 @@ export const WorkflowExplorer: React.FC<WorkflowExplorerProps> = ({
                   `}
                   style={{
                     background: phase.color
-                      ? `linear-gradient(135deg, ${phase.color}0A 0%, ${phase.color}05 100%)`
+                      ? `linear-gradient(135deg, ${phase.color}99 0%, ${phase.color}66 100%)`
                       : 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
                     borderColor: phase.color
-                      ? `${phase.color}15`
+                      ? `${phase.color}CC`
                       : 'rgba(255,255,255,0.1)'
                   }}
                 >

@@ -104,6 +104,11 @@ export interface Phase {
   color?: string;
   icon?: string;
   phase_data: PhaseDataField[];
+  type: string;
+  wait_duration_seconds?: number;
+  pre_wait_message?: string;
+  post_wait_prompt?: string;
+  visualization_type?: string;
 }
 
 export interface PhaseDataField {

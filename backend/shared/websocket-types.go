@@ -119,6 +119,13 @@ type Phase struct {
 	Color       string           `json:"color,omitempty"`
 	Icon        string           `json:"icon,omitempty"`
 	PhaseData   []PhaseDataField `json:"phase_data"` // Schema for this phase
+
+	// Phase type fields for timed waiting periods
+	Type                string `json:"type"`                             // conversational or timed_waiting
+	WaitDurationSeconds int    `json:"wait_duration_seconds,omitempty"` // Duration for waiting phases
+	PreWaitMessage      string `json:"pre_wait_message,omitempty"`      // Message before waiting
+	PostWaitPrompt      string `json:"post_wait_prompt,omitempty"`      // Prompt after waiting
+	VisualizationType   string `json:"visualization_type,omitempty"`    // Type of visualization during wait
 }
 
 // PhaseDataField represents a data field required or optional for a phase

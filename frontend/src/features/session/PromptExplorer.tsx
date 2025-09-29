@@ -35,56 +35,49 @@ export const PromptExplorer: React.FC<{ sessionId: string }> = ({ sessionId }) =
   };
 
   return (
-    <div className="h-full overflow-y-auto p-3 bg-black/20 font-mono text-xs">
-      <div className="text-white/80 mb-4">
-        <div className="text-sm font-semibold mb-2">RAW PROMPT LOG</div>
-        <div className="text-white/60">Session: {sessionId}</div>
-        <div className="text-white/60">Total entries: {prompts.length}</div>
+    <div className="h-full overflow-y-auto p-3 bg-black/30 font-mono text-xs">
+      <div className="text-white/80 mb-4 border-b border-white/10 pb-2">
+        <div className="text-sm font-bold">PROMPT EXPLORER</div>
+        <div className="text-white/50 text-xs">Session: {sessionId.slice(0, 8)}...</div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {prompts.map((log, index) => (
-          <div key={index} className="border-l-2 border-white/20 pl-4">
-            <div className="text-slate-400 mb-1">
-              [{log.timestamp}] {log.turn_type} - Phase: {log.phase}
+          <div key={index} className="border-l-2 border-white/10 pl-3">
+            <div className="text-white/40 mb-2 text-xs">
+              {new Date(log.timestamp).toLocaleTimeString()} • {log.phase} • {log.turn_type}
             </div>
 
+            {/* Show user message if present */}
             {log.turn_type === 'REQUEST' && log.user_message && (
-              <div className="mb-2">
-                <div className="text-blue-400/60 mb-1">USER MESSAGE:</div>
-                <div className="text-white/70 whitespace-pre-wrap bg-blue-500/10 p-2 rounded">
-                  {log.user_message}
-                </div>
+              <div className="mb-3 text-blue-300/80 bg-blue-500/5 p-2 rounded border border-blue-500/20">
+                USER: {log.user_message}
               </div>
             )}
 
+            {/* Show the RAW PROMPT prominently */}
             {log.turn_type === 'REQUEST' && log.prompt && (
-              <details className="mt-2 mb-2">
-                <summary className="cursor-pointer text-xs text-white/40 hover:text-white/60">
-                  📝 Full Prompt ({log.prompt.length} chars)
-                </summary>
-                <pre className="mt-2 p-2 bg-black/40 rounded text-xs overflow-x-auto text-white/50 max-h-96 overflow-y-auto">
-                  {log.prompt}
+              <div className="mb-3">
+                <div className="text-white/60 mb-1 font-bold">RAW PROMPT SENT TO AI:</div>
+                <pre className="p-3 bg-black/50 border border-white/10 rounded text-white/70 overflow-x-auto whitespace-pre-wrap text-xs leading-relaxed">
+{log.prompt}
                 </pre>
-              </details>
+              </div>
             )}
 
+            {/* Show AI response compactly */}
             {log.turn_type === 'RESPONSE' && (
-              <div className="mb-2">
-                <div className="text-green-400/60 mb-1">
-                  AI RESPONSE (tokens: {log.token_total || 0}, tools: {log.function_calls?.length || 0}):
+              <div className="text-green-300/80 bg-green-500/5 p-2 rounded border border-green-500/20">
+                <div className="text-xs text-green-400/60 mb-1">
+                  AI ({log.token_total || 0} tokens{log.function_calls?.length ? `, ${log.function_calls.length} tools` : ''})
                 </div>
-                <div className="text-white/70 whitespace-pre-wrap bg-green-500/10 p-2 rounded">
-                  {log.response_text}
-                </div>
+                <div className="whitespace-pre-wrap">{log.response_text}</div>
 
                 {log.function_calls && log.function_calls.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-amber-400/60 mb-1">TOOL CALLS:</div>
-                    <div className="text-white/60 bg-amber-500/10 p-2 rounded">
-                      <pre>{JSON.stringify(log.function_calls, null, 2)}</pre>
-                    </div>
-                  </div>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-amber-400/60">Tools</summary>
+                    <pre className="text-xs mt-1 text-amber-300/60">{JSON.stringify(log.function_calls, null, 2)}</pre>
+                  </details>
                 )}
               </div>
             )}

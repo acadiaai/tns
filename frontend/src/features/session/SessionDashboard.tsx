@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiUrl } from '../../config/api';
 import { fetchWithAuth } from '../../utils/auth-interceptor';
 import { ChatPanel } from './components/ChatPanel';
@@ -9,6 +9,7 @@ import { useMessages } from './hooks/useMessages';
 import { useWorkflow } from './hooks/useWorkflow';
 import { GitBranch, FileText } from 'lucide-react';
 import { PhaseIcon } from '../../utils/iconMapper';
+import { FullscreenWaiting } from '../../components/FullscreenWaiting';
 
 interface SessionDashboardProps {
   sessionId?: string;
@@ -33,6 +34,10 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
   const [lastKnownPhaseInfo, setLastKnownPhaseInfo] = useState<any>(null);
   const [phases, setPhases] = useState<any[]>([]);
 
+  // Fullscreen waiting state
+  const [showFullscreenWaiting, setShowFullscreenWaiting] = useState(false);
+  const [waitingPhase, setWaitingPhase] = useState<any>(null);
+
   // Get phase from WebSocket data - workflowStatus should have all we need
   const currentPhase = workflowStatus?.phase || workflowStatus?.current_state || '';
   const phaseDescription = workflowStatus?.phase_description || '';
@@ -52,6 +57,22 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
       })
       .catch(err => console.error('Failed to load phases:', err));
   }, [currentPhase]);
+
+  // Monitor for timed waiting phases and auto-launch fullscreen
+  useEffect(() => {
+    const phaseMetadata = phases.find(p => p.id === currentPhase);
+
+    // Check if current phase is a timed_waiting type
+    if (phaseMetadata?.type === 'timed_waiting' && !showFullscreenWaiting) {
+      console.log('🎯 Launching fullscreen waiting for phase:', currentPhase);
+      setWaitingPhase(phaseMetadata);
+      setShowFullscreenWaiting(true);
+    } else if (phaseMetadata?.type !== 'timed_waiting' && showFullscreenWaiting) {
+      // Phase changed away from timed waiting, close fullscreen
+      setShowFullscreenWaiting(false);
+      setWaitingPhase(null);
+    }
+  }, [currentPhase, phases, showFullscreenWaiting]);
 
   // Build display info from WebSocket data first, fallback to API data
   const displayPhaseInfo = React.useMemo(() => {
@@ -433,6 +454,29 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
           </div>
         )}
       </div>
+
+      {/* Fullscreen Waiting Component */}
+      {waitingPhase && (
+        <FullscreenWaiting
+          isVisible={showFullscreenWaiting}
+          durationSeconds={waitingPhase.wait_duration_seconds || 60}
+          visualizationType={waitingPhase.visualization_type || 'breathing_circle'}
+          preWaitMessage={waitingPhase.pre_wait_message || `Take a moment to focus during this ${waitingPhase.display_name} phase.`}
+          postWaitPrompt={waitingPhase.post_wait_prompt}
+          title={waitingPhase.display_name || 'Focused Time'}
+          onComplete={() => {
+            console.log('🎯 Fullscreen waiting completed');
+            setShowFullscreenWaiting(false);
+            setWaitingPhase(null);
+            // The backend will handle auto-transition after the timer completes
+          }}
+          onClose={() => {
+            console.log('🎯 Fullscreen waiting manually closed');
+            setShowFullscreenWaiting(false);
+            setWaitingPhase(null);
+          }}
+        />
+      )}
     </div>
   );
 };

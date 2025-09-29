@@ -496,6 +496,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/system-prompt": {
+            "get": {
+                "description": "Retrieve the current system prompt configuration",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "prompts"
+                ],
+                "summary": "Get system prompt",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.Prompt"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update the system prompt configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "prompts"
+                ],
+                "summary": "Update system prompt",
+                "parameters": [
+                    {
+                        "description": "Update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateSystemPromptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.Prompt"
+                        }
+                    }
+                }
+            }
+        },
         "/api/tools": {
             "get": {
                 "description": "Retrieve all MCP tools available in the system",
@@ -595,6 +647,14 @@ const docTemplate = `{
                     "description": "Order of phases",
                     "type": "integer"
                 },
+                "post_wait_prompt": {
+                    "description": "Prompt shown after waiting",
+                    "type": "string"
+                },
+                "pre_wait_message": {
+                    "description": "Message shown before waiting",
+                    "type": "string"
+                },
                 "recommended_duration_seconds": {
                     "description": "Recommended time for phase",
                     "type": "integer"
@@ -623,8 +683,20 @@ const docTemplate = `{
                         "$ref": "#/definitions/repository.PhaseTransition"
                     }
                 },
+                "type": {
+                    "description": "Phase type fields for timed waiting periods",
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string"
+                },
+                "visualization_type": {
+                    "description": "breathing_circle, ocean_waves, etc.",
+                    "type": "string"
+                },
+                "wait_duration_seconds": {
+                    "description": "Duration for timed_waiting phases",
+                    "type": "integer"
                 }
             }
         },
@@ -680,6 +752,17 @@ const docTemplate = `{
                 }
             }
         },
+        "api.UpdateSystemPromptRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                }
+            }
+        },
         "repository.Phase": {
             "type": "object",
             "properties": {
@@ -731,6 +814,14 @@ const docTemplate = `{
                     "description": "Order of phases",
                     "type": "integer"
                 },
+                "post_wait_prompt": {
+                    "description": "Prompt shown after waiting",
+                    "type": "string"
+                },
+                "pre_wait_message": {
+                    "description": "Message shown before waiting",
+                    "type": "string"
+                },
                 "recommended_duration_seconds": {
                     "description": "Recommended time for phase",
                     "type": "integer"
@@ -747,8 +838,20 @@ const docTemplate = `{
                         "$ref": "#/definitions/repository.PhaseTransition"
                     }
                 },
+                "type": {
+                    "description": "Phase type fields for timed waiting periods",
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string"
+                },
+                "visualization_type": {
+                    "description": "breathing_circle, ocean_waves, etc.",
+                    "type": "string"
+                },
+                "wait_duration_seconds": {
+                    "description": "Duration for timed_waiting phases",
+                    "type": "integer"
                 }
             }
         },

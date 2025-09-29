@@ -146,7 +146,7 @@ func (m *Machine) GetPhaseGuidance(currentPhase string) (string, error) {
 
 	if len(missing) == 0 && turnsOK {
 		guidance.WriteString("✅ ALL REQUIREMENTS MET - Ready to transition!\n")
-		guidance.WriteString("Use therapy_session_transition() when therapeutically appropriate.\n")
+		guidance.WriteString("Continue the therapeutic conversation naturally. The system will auto-transition when appropriate.\n")
 	} else {
 		guidance.WriteString("⚠️ TRANSITION REQUIREMENTS:\n\n")
 

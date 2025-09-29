@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"therapy-navigation-system/internal/logger"
 	"therapy-navigation-system/internal/repository"
@@ -135,7 +136,34 @@ func TransitionPhaseHandler(w http.ResponseWriter, r *http.Request) {
 		"session_id": session.ID,
 		"from_phase": oldPhase,
 		"to_phase":   req.ToPhaseID,
+		"phase_type": targetPhase.Type,
 	}).Info("Phase transition completed")
+
+	// Check if entering a timed waiting phase
+	if targetPhase.Type == "timed_waiting" && targetPhase.WaitDurationSeconds > 0 {
+		logger.AppLogger.WithFields(map[string]interface{}{
+			"session_id": session.ID,
+			"phase_id":   targetPhase.ID,
+			"wait_duration": targetPhase.WaitDurationSeconds,
+		}).Info("Entering timed waiting phase - starting countdown")
+
+		// Send pre-wait message
+		if targetPhase.PreWaitMessage != "" {
+			broadcastSessionUpdate(session.ID, shared.TherapySessionUpdate{
+				Type:      "waiting_phase_started",
+				Phase:     targetPhase.ID,
+				Metadata: map[string]interface{}{
+					"wait_duration_seconds": targetPhase.WaitDurationSeconds,
+					"pre_wait_message": targetPhase.PreWaitMessage,
+					"visualization_type": targetPhase.VisualizationType,
+				},
+				Timestamp: time.Now(),
+			})
+		}
+
+		// Start countdown timer
+		go handleWaitingPhase(session.ID, targetPhase)
+	}
 
 	// State machine manages timer: Start timer when leaving pre-session
 	if oldPhase == "pre_session" && req.ToPhaseID != "pre_session" {
@@ -265,4 +293,81 @@ func CheckAutoAdvanceHandler(w http.ResponseWriter, r *http.Request) {
 		"current_phase":  session.Phase,
 		"next_phase":     nextPhase,
 	})
+}
+
+// handleWaitingPhase manages the timed waiting period for non-interactive phases
+func handleWaitingPhase(sessionID string, phase repository.Phase) {
+	waitDuration := time.Duration(phase.WaitDurationSeconds) * time.Second
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	startTime := time.Now()
+
+	// Send countdown updates every second
+	for elapsed := time.Duration(0); elapsed < waitDuration; elapsed = time.Since(startTime) {
+		select {
+		case <-ticker.C:
+			remaining := int(waitDuration.Seconds() - elapsed.Seconds())
+			if remaining < 0 {
+				remaining = 0
+			}
+
+			// Send countdown update
+			broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
+				Type:      "waiting_phase_countdown",
+				Phase:     phase.ID,
+				Metadata: map[string]interface{}{
+					"elapsed_seconds":   int(elapsed.Seconds()),
+					"remaining_seconds": remaining,
+					"total_seconds":     phase.WaitDurationSeconds,
+				},
+				Timestamp: time.Now(),
+			})
+
+			if remaining <= 0 {
+				break
+			}
+		}
+	}
+
+	// Waiting period complete - send post-wait prompt
+	logger.AppLogger.WithFields(map[string]interface{}{
+		"session_id": sessionID,
+		"phase_id":   phase.ID,
+		"duration":   phase.WaitDurationSeconds,
+	}).Info("Waiting phase completed")
+
+	// Send completion message with post-wait prompt
+	broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
+		Type:      "waiting_phase_completed",
+		Phase:     phase.ID,
+		Metadata: map[string]interface{}{
+			"post_wait_prompt": phase.PostWaitPrompt,
+		},
+		Timestamp: time.Now(),
+	})
+
+	// Auto-transition to next phase (Stage 5 - Checking In)
+	// This is hardcoded for now but could be made data-driven
+	if phase.ID == "stage_4_focused_mindfulness" {
+		// Transition to Stage 5
+		var session repository.Session
+		if err := repository.DB.First(&session, "id = ?", sessionID).Error; err == nil {
+			session.Phase = "stage_5_checking_in"
+			if err := repository.DB.Save(&session).Error; err == nil {
+				logger.AppLogger.WithField("session_id", sessionID).Info("Auto-transitioned to Stage 5 after waiting")
+
+				broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
+					Type:      "phase_transition",
+					Phase:     "stage_5_checking_in",
+					Metadata: map[string]interface{}{
+						"from_phase": phase.ID,
+						"to_phase":   "stage_5_checking_in",
+						"reason":     "Automatic transition after timed waiting",
+					},
+					Timestamp: time.Now(),
+				})
+			}
+		}
+	}
 }

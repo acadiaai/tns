@@ -5,118 +5,119 @@ import (
 	"gorm.io/gorm"
 )
 
-// migrate002Phases creates all 10 brainspotting phases
+// migrate002Phases creates the brainspotting workflow with pre-session
 func migrate002Phases(db *gorm.DB) error {
+	// Complete workflow including pre-session
 	phases := []Phase{
-		// Phase 1: Pre-Session
+		// Pre-Session: Consent and rapport
 		{
 			ID:                         "pre_session",
 			DisplayName:                "Pre-Session",
-			Description:                "Build rapport and prepare for session",
+			Description:                "Build rapport and obtain consent",
 			Position:                   1,
 			MinimumTurns:               1,
 			RecommendedDurationSeconds: 120, // 2 minutes
 			Icon:                       "Hand",
-			Color:                      "#0096FF", // Blue
+			Color:                      "#9E9E9E",
 		},
-		// Phase 2: Issue Selection
+		// Stage 1: Deciding an Issue
 		{
-			ID:                         "issue_decision",
-			DisplayName:                "Issue Selection",
-			Description:                "Identify and select focus area",
+			ID:                         "stage_1_deciding_issue",
+			DisplayName:                "Deciding an Issue",
+			Description:                "What troubles you? What needs improvement? What's difficult to achieve?",
 			Position:                   2,
-			MinimumTurns:               3,
-			RecommendedDurationSeconds: 300, // 5 minutes
+			MinimumTurns:               2,
+			RecommendedDurationSeconds: 180, // 3 minutes
 			Icon:                       "Target",
-			Color:                      "#635BFF", // Stripe purple
+			Color:                      "#4CAF50",
 		},
-		// Phase 3: Information Gathering
+		// Stage 2: Information Gathering
 		{
-			ID:                         "information_gathering",
+			ID:                         "stage_2_information_gathering",
 			DisplayName:                "Information Gathering",
-			Description:                "Gather details about the issue",
+			Description:                "History (when started/worsened), current status (impacts), desired outcome",
 			Position:                   3,
-			MinimumTurns:               4,
+			MinimumTurns:               3,
 			RecommendedDurationSeconds: 300, // 5 minutes
 			Icon:                       "BarChart2",
-			Color:                      "#00D4FF", // Cyan blue
+			Color:                      "#2196F3",
 		},
-		// Phase 4: Body Scan
+		// Stage 3: Activating & Setup (SUDs + Body + Eye)
 		{
-			ID:                         "body_scan",
-			DisplayName:                "Body Scan",
-			Description:                "Identify body sensations and activation",
+			ID:                         "stage_3_activating_setup",
+			DisplayName:                "Activating & Setup",
+			Description:                "Activate issue, rate SUDs (0-10), find body location, locate eye position",
 			Position:                   4,
-			MinimumTurns:               3,
-			RecommendedDurationSeconds: 180, // 3 minutes
-			Icon:                       "User",
-			Color:                      "#FF5E00", // Deep orange
-		},
-		// Phase 5: Eye Position
-		{
-			ID:                         "eye_position",
-			DisplayName:                "Eye Position",
-			Description:                "Find the brainspot",
-			Position:                   5,
 			MinimumTurns:               3,
 			RecommendedDurationSeconds: 240, // 4 minutes
 			Icon:                       "Eye",
-			Color:                      "#E91E63", // Pink
+			Color:                      "#FF9800",
 		},
-		// Phase 6: Focused Mindfulness
+		// Stage 4: Focused Mindfulness (TIMED WAITING)
 		{
-			ID:                         "focused_mindfulness",
+			ID:                         "stage_4_focused_mindfulness",
 			DisplayName:                "Focused Mindfulness",
-			Description:                "Processing and integration",
-			Position:                   6,
-			MinimumTurns:               5,
-			RecommendedDurationSeconds: 600, // 10 minutes (longer processing)
+			Description:                "Stay with brainspot, observe freely, no analysis or control",
+			Position:                   5,
+			MinimumTurns:               0, // No conversation - it's a waiting phase!
+			RecommendedDurationSeconds: 180, // 3 minutes per cycle
 			Icon:                       "Brain",
-			Color:                      "#00BFA5", // Teal
+			Color:                      "#9C27B0",
 		},
-		// Phase 7: Status Check
+		// Stage 5: Checking In
 		{
-			ID:                         "status_check",
-			DisplayName:                "Status Check",
-			Description:                "Check progress and determine next steps",
-			Position:                   7,
+			ID:                         "stage_5_checking_in",
+			DisplayName:                "Checking In",
+			Description:                "What did you observe? Current SUDs? Continue or transition?",
+			Position:                   6,
 			MinimumTurns:               2,
 			RecommendedDurationSeconds: 120, // 2 minutes
 			Icon:                       "TrendingUp",
-			Color:                      "#00E676", // Green
+			Color:                      "#00BCD4",
 		},
-		// Phase 8: Squeeze Hug
+		// Stage 6: Micro-reprocessing (if needed after 20 min)
 		{
-			ID:                         "squeeze_hug",
-			DisplayName:                "Squeeze Hug",
-			Description:                "Bilateral stimulation for integration",
-			Position:                   8,
-			MinimumTurns:               3,
+			ID:                         "stage_6_micro_reprocessing",
+			DisplayName:                "Micro-reprocessing",
+			Description:                "De-escalate, reorient, or relax if SUDs persists after 20 minutes",
+			Position:                   7,
+			MinimumTurns:               2,
 			RecommendedDurationSeconds: 180, // 3 minutes
 			Icon:                       "Heart",
-			Color:                      "#FF6B35", // Warm orange
+			Color:                      "#FFEB3B",
 		},
-		// Phase 9: Positive Installation
+		// Stage 7: Squeeze Lemon/Confirm Zero
 		{
-			ID:                         "positive_installation",
-			DisplayName:                "Positive Installation",
-			Description:                "Install positive beliefs and resources",
+			ID:                         "stage_7_squeeze_lemon",
+			DisplayName:                "Squeeze Lemon",
+			Description:                "Expose to detailed events to confirm SUDs = 0",
+			Position:                   8,
+			MinimumTurns:               2,
+			RecommendedDurationSeconds: 180, // 3 minutes
+			Icon:                       "CheckCircle2",
+			Color:                      "#8BC34A",
+		},
+		// Stage 8: Expansion
+		{
+			ID:                         "stage_8_expansion",
+			DisplayName:                "Expansion",
+			Description:                "Integrate zero activation state into all life spaces",
 			Position:                   9,
 			MinimumTurns:               3,
 			RecommendedDurationSeconds: 240, // 4 minutes
 			Icon:                       "Sparkles",
-			Color:                      "#7C4DFF", // Deep purple
+			Color:                      "#E91E63",
 		},
-		// Phase 10: Complete
+		// Completion: Session wrap-up and next steps
 		{
-			ID:                         "complete",
-			DisplayName:                "Session Wrap-Up",
-			Description:                "Closure and integration of session work",
+			ID:                         "completion",
+			DisplayName:                "Session Complete",
+			Description:                "Wrap up the session, discuss insights, and plan next steps",
 			Position:                   10,
 			MinimumTurns:               2,
-			RecommendedDurationSeconds: 120, // 2 minutes
-			Icon:                       "CheckCircle2",
-			Color:                      "#10b981", // Bright green
+			RecommendedDurationSeconds: 180, // 3 minutes
+			Icon:                       "CheckCircle",
+			Color:                      "#4CAF50",
 		},
 	}
 
