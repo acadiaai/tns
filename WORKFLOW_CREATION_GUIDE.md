@@ -1,14 +1,14 @@
-# Therapy Navigation System - Workflow Creation Guide
+# Workflow Navigation System - Creation Guide
 
 ## 🎯 Overview
-Create custom therapeutic workflows compatible with our AI-powered navigation system. This guide will help you design structured therapy sessions with automatic phase transitions, data collection, and interactive elements.
+Create custom AI-guided workflows for ANY domain - therapy, education, onboarding, coaching, sales, customer support, research interviews, and more. This system enables structured conversations with automatic progression, data collection, and interactive elements.
 
 ## 🏗️ System Architecture
 
 Our system uses a **phase-based state machine** where:
-- Each phase represents a distinct stage of the therapeutic process
-- Phases can be **conversational** (interactive dialogue) or **timed_waiting** (mindfulness/reflection periods)
-- AI coach guides clients through phases automatically
+- Each phase represents a distinct stage of your process
+- Phases can be **conversational** (interactive dialogue) or **timed_waiting** (pauses, reflection, tasks)
+- AI guide leads users through phases automatically
 - Data is collected and validated at each phase
 - Transitions occur when phase requirements are met
 
@@ -73,206 +73,315 @@ Define allowed paths between phases:
 }
 ```
 
-### 4. AI Prompts
-Guide the AI coach's behavior in each phase:
+### 4. AI Guide Prompts
+Configure the AI's behavior in each phase:
 
 ```json
 {
   "phase_id": "phase_name",
-  "prompt": "You are guiding the client through [phase description]. Focus on:\n- Key point 1\n- Key point 2\n\nAsk about: [specific topics]\nCollect: [required data]\nMaintain: [therapeutic stance]"
+  "prompt": "You are guiding the user through [phase description]. Focus on:\n- Key point 1\n- Key point 2\n\nAsk about: [specific topics]\nCollect: [required data]\nMaintain: [appropriate tone]"
 }
 ```
 
 ## 🎨 Visualization Types for Timed Phases
 
-- `breathing_circle` - Expanding/contracting circle for breath work
+- `breathing_circle` - Expanding/contracting circle for mindfulness
 - `ocean_waves` - Calming wave animations
-- `forest_sounds` - Green forest ambiance
-- `mountain_view` - Static mountain vista
-- `starfield` - Twinkling stars
+- `forest_sounds` - Nature-themed ambiance
+- `mountain_view` - Scenic vista
+- `starfield` - Space/stars animation
 - `minimal` - Simple gradient background
+- `progress_bar` - Task completion visual
+- `countdown_timer` - Bold countdown display
 
 ## 📝 Complete Workflow Template
 
 ```json
 {
-  "workflow_name": "Your Therapy Protocol",
+  "workflow_name": "Your Workflow Name",
   "version": "1.0.0",
-  "description": "Brief description of the therapeutic approach",
-  "total_duration_minutes": 50,
+  "description": "Brief description of the process",
+  "domain": "education/sales/support/coaching/therapy/onboarding",
+  "total_duration_minutes": 30,
 
   "phases": [
     {
-      "id": "intake",
-      "display_name": "Initial Assessment",
-      "description": "Understand client's current state",
+      "id": "introduction",
+      "display_name": "Welcome",
+      "description": "Introduce the process and set expectations",
       "position": 1,
       "type": "conversational",
-      "minimum_turns": 3,
-      "recommended_duration_seconds": 300,
-      "icon": "Clipboard",
-      "color": "#9E9E9E",
+      "minimum_turns": 2,
+      "recommended_duration_seconds": 120,
+      "icon": "HandWave",
+      "color": "#4CAF50",
       "required_data": [
         {
-          "name": "presenting_issue",
+          "name": "user_name",
           "type": "string",
           "required": true,
-          "description": "What brings you here today?"
+          "description": "User's preferred name"
         },
         {
-          "name": "severity",
-          "type": "integer",
+          "name": "primary_goal",
+          "type": "string",
           "required": true,
-          "description": "Rate severity 1-10",
-          "min": 1,
-          "max": 10
+          "description": "What they hope to achieve"
         }
       ],
-      "ai_prompt": "Warmly greet the client and explore their presenting issue with empathy and curiosity."
+      "ai_prompt": "Warmly welcome the user and understand their primary goal."
     },
 
     {
-      "id": "reflection",
-      "display_name": "Mindful Reflection",
-      "description": "Pause to process insights",
+      "id": "processing",
+      "display_name": "Processing Time",
+      "description": "Time for reflection or task completion",
       "position": 2,
       "type": "timed_waiting",
-      "wait_duration_seconds": 120,
-      "visualization_type": "breathing_circle",
-      "pre_wait_message": "Let's take a moment to reflect on what you've shared.",
-      "post_wait_prompt": "What came up for you during that pause?",
-      "icon": "Brain",
+      "wait_duration_seconds": 60,
+      "visualization_type": "progress_bar",
+      "pre_wait_message": "Please take a moment to complete the following task...",
+      "post_wait_prompt": "How did that go? What did you discover?",
+      "icon": "Clock",
       "color": "#2196F3"
     }
   ],
 
   "transitions": [
     {
-      "from_phase": "intake",
-      "to_phase": "reflection",
-      "condition": "presenting_issue AND severity collected"
-    },
-    {
-      "from_phase": "reflection",
-      "to_phase": "intervention",
-      "condition": "automatic_after_timer"
-    }
-  ],
-
-  "tools": [
-    {
-      "name": "collect_structured_data",
-      "available_in_phases": ["intake", "assessment"],
-      "description": "Collects and validates required phase data"
+      "from_phase": "introduction",
+      "to_phase": "processing",
+      "condition": "user_name AND primary_goal collected"
     }
   ]
 }
 ```
 
-## 🔄 Workflow Examples
+## 🌟 Domain-Specific Examples
 
-### Example 1: CBT Session
+### Example 1: Customer Onboarding
 ```json
 {
-  "workflow_name": "Cognitive Behavioral Therapy Session",
+  "workflow_name": "SaaS Product Onboarding",
+  "domain": "onboarding",
   "phases": [
     {
-      "id": "thought_identification",
-      "display_name": "Identify Automatic Thoughts",
+      "id": "welcome",
+      "display_name": "Welcome Aboard",
       "type": "conversational",
-      "minimum_turns": 4,
       "required_data": [
-        {"name": "automatic_thought", "type": "string"},
-        {"name": "emotion", "type": "string"},
-        {"name": "intensity", "type": "integer", "min": 1, "max": 10}
+        {"name": "company_name", "type": "string"},
+        {"name": "team_size", "type": "integer"},
+        {"name": "use_case", "type": "string"}
       ]
     },
     {
-      "id": "evidence_analysis",
-      "display_name": "Examine Evidence",
-      "type": "conversational",
-      "required_data": [
-        {"name": "evidence_for", "type": "array"},
-        {"name": "evidence_against", "type": "array"}
-      ]
+      "id": "setup_pause",
+      "display_name": "Account Setup",
+      "type": "timed_waiting",
+      "wait_duration_seconds": 120,
+      "visualization_type": "progress_bar",
+      "pre_wait_message": "Let's set up your workspace. Follow the steps on screen..."
     },
     {
-      "id": "reframe",
-      "display_name": "Develop Balanced Thought",
+      "id": "feature_tour",
+      "display_name": "Key Features",
       "type": "conversational",
       "required_data": [
-        {"name": "balanced_thought", "type": "string"},
-        {"name": "new_emotion_intensity", "type": "integer"}
+        {"name": "priority_features", "type": "array"},
+        {"name": "integration_needs", "type": "array"}
       ]
     }
   ]
 }
 ```
 
-### Example 2: Mindfulness-Based Stress Reduction
+### Example 2: Sales Discovery Call
 ```json
 {
-  "workflow_name": "MBSR Session",
+  "workflow_name": "B2B Sales Discovery",
+  "domain": "sales",
   "phases": [
     {
-      "id": "check_in",
-      "display_name": "Present Moment Check-in",
+      "id": "rapport",
+      "display_name": "Build Rapport",
       "type": "conversational",
       "minimum_turns": 2
     },
     {
-      "id": "body_scan",
-      "display_name": "Body Scan Meditation",
-      "type": "timed_waiting",
-      "wait_duration_seconds": 600,
-      "visualization_type": "minimal",
-      "pre_wait_message": "We'll now do a 10-minute body scan. Find a comfortable position."
-    },
-    {
-      "id": "reflection",
-      "display_name": "Post-Meditation Reflection",
+      "id": "current_state",
+      "display_name": "Current Situation",
       "type": "conversational",
       "required_data": [
-        {"name": "observations", "type": "string"},
-        {"name": "body_sensations", "type": "array"}
+        {"name": "current_solution", "type": "string"},
+        {"name": "pain_points", "type": "array"},
+        {"name": "budget_range", "type": "string"}
+      ]
+    },
+    {
+      "id": "demo_pause",
+      "display_name": "Quick Demo",
+      "type": "timed_waiting",
+      "wait_duration_seconds": 180,
+      "visualization_type": "minimal",
+      "pre_wait_message": "Let me show you how our solution addresses your needs..."
+    }
+  ]
+}
+```
+
+### Example 3: Educational Module
+```json
+{
+  "workflow_name": "Learn Python Basics",
+  "domain": "education",
+  "phases": [
+    {
+      "id": "assess_knowledge",
+      "display_name": "Knowledge Check",
+      "type": "conversational",
+      "required_data": [
+        {"name": "programming_experience", "type": "string"},
+        {"name": "learning_goals", "type": "array"}
+      ]
+    },
+    {
+      "id": "concept_introduction",
+      "display_name": "Variables & Data Types",
+      "type": "conversational",
+      "minimum_turns": 4
+    },
+    {
+      "id": "practice_time",
+      "display_name": "Coding Exercise",
+      "type": "timed_waiting",
+      "wait_duration_seconds": 300,
+      "visualization_type": "countdown_timer",
+      "pre_wait_message": "Try writing a simple program using variables. You have 5 minutes!",
+      "post_wait_prompt": "Share your code. What challenges did you face?"
+    },
+    {
+      "id": "review",
+      "display_name": "Review & Feedback",
+      "type": "conversational",
+      "required_data": [
+        {"name": "code_submission", "type": "string"},
+        {"name": "confidence_level", "type": "integer", "min": 1, "max": 5}
       ]
     }
   ]
 }
 ```
 
-### Example 3: Solution-Focused Brief Therapy
+### Example 4: Research Interview
 ```json
 {
-  "workflow_name": "SFBT Session",
+  "workflow_name": "User Research Interview",
+  "domain": "research",
   "phases": [
     {
-      "id": "miracle_question",
-      "display_name": "The Miracle Question",
+      "id": "consent",
+      "display_name": "Consent & Introduction",
       "type": "conversational",
       "required_data": [
-        {"name": "miracle_scenario", "type": "string"},
-        {"name": "first_signs", "type": "array"}
-      ],
-      "ai_prompt": "Ask: 'If a miracle happened overnight and your problem was solved, what would be different tomorrow?'"
-    },
-    {
-      "id": "scaling",
-      "display_name": "Scaling Questions",
-      "type": "conversational",
-      "required_data": [
-        {"name": "current_scale", "type": "integer", "min": 1, "max": 10},
-        {"name": "one_point_higher", "type": "string"}
+        {"name": "consent_given", "type": "boolean"},
+        {"name": "demographic_info", "type": "object"}
       ]
     },
     {
-      "id": "exceptions",
-      "display_name": "Finding Exceptions",
+      "id": "experience_mapping",
+      "display_name": "Current Experience",
+      "type": "conversational",
+      "minimum_turns": 6,
+      "required_data": [
+        {"name": "current_workflow", "type": "string"},
+        {"name": "pain_points", "type": "array"},
+        {"name": "workarounds", "type": "array"}
+      ]
+    },
+    {
+      "id": "reflection",
+      "display_name": "Reflection Break",
+      "type": "timed_waiting",
+      "wait_duration_seconds": 30,
+      "visualization_type": "minimal",
+      "pre_wait_message": "Take a moment to think about your ideal solution...",
+      "post_wait_prompt": "Describe your ideal workflow."
+    }
+  ]
+}
+```
+
+### Example 5: Fitness Coaching
+```json
+{
+  "workflow_name": "Weekly Fitness Check-in",
+  "domain": "coaching",
+  "phases": [
+    {
+      "id": "progress_review",
+      "display_name": "Weekly Progress",
       "type": "conversational",
       "required_data": [
-        {"name": "times_better", "type": "array"},
-        {"name": "what_was_different", "type": "string"}
+        {"name": "workouts_completed", "type": "integer"},
+        {"name": "nutrition_adherence", "type": "integer", "min": 1, "max": 10},
+        {"name": "energy_levels", "type": "integer", "min": 1, "max": 10}
       ]
+    },
+    {
+      "id": "movement_break",
+      "display_name": "Quick Movement",
+      "type": "timed_waiting",
+      "wait_duration_seconds": 120,
+      "visualization_type": "breathing_circle",
+      "pre_wait_message": "Let's do 2 minutes of stretching. Follow along with your breath...",
+      "post_wait_prompt": "How does your body feel now?"
+    },
+    {
+      "id": "goal_setting",
+      "display_name": "Next Week's Goals",
+      "type": "conversational",
+      "required_data": [
+        {"name": "workout_goals", "type": "array"},
+        {"name": "nutrition_goals", "type": "array"},
+        {"name": "accountability_plan", "type": "string"}
+      ]
+    }
+  ]
+}
+```
+
+### Example 6: Technical Support
+```json
+{
+  "workflow_name": "IT Support Troubleshooting",
+  "domain": "support",
+  "phases": [
+    {
+      "id": "issue_identification",
+      "display_name": "Identify Issue",
+      "type": "conversational",
+      "required_data": [
+        {"name": "device_type", "type": "string"},
+        {"name": "issue_description", "type": "string"},
+        {"name": "error_messages", "type": "array"},
+        {"name": "when_started", "type": "string"}
+      ]
+    },
+    {
+      "id": "diagnostic_steps",
+      "display_name": "Run Diagnostics",
+      "type": "conversational",
+      "minimum_turns": 3
+    },
+    {
+      "id": "apply_fix",
+      "display_name": "Apply Solution",
+      "type": "timed_waiting",
+      "wait_duration_seconds": 90,
+      "visualization_type": "progress_bar",
+      "pre_wait_message": "Please follow these steps to resolve the issue...",
+      "post_wait_prompt": "Did that resolve your issue?"
     }
   ]
 }
@@ -287,7 +396,7 @@ Guide the AI coach's behavior in each phase:
 5. **Required fields** must have clear descriptions
 6. **Transitions** must connect existing phases
 7. **Timed phases** must have wait_duration_seconds
-8. **Field types** must be: string, integer, boolean, or array
+8. **Field types** must be: string, integer, boolean, array, or object
 
 ## 🚀 Submission Format
 
@@ -304,11 +413,12 @@ Send your workflow as a JSON file with:
 2. **Clear Transitions**: Make phase progression logical
 3. **Meaningful Data**: Only collect data you'll use
 4. **Appropriate Timing**:
-   - Conversational: 2-10 minutes
+   - Conversational: 1-10 minutes
    - Timed waiting: 30 seconds - 10 minutes
-5. **User Experience**: Consider cognitive load and session flow
-6. **Safety First**: Include grounding/stabilization phases when needed
+5. **User Experience**: Consider cognitive load and flow
+6. **Progressive Disclosure**: Don't overwhelm users early
 7. **Flexibility**: Allow multiple transition paths where appropriate
+8. **Domain Appropriate**: Match tone and pacing to your use case
 
 ## 🔧 Testing Your Workflow
 
@@ -318,7 +428,7 @@ Before submission, verify:
 - [ ] Required data fields are clearly defined
 - [ ] AI prompts provide clear guidance
 - [ ] Timed phases have appropriate durations
-- [ ] Total session time is reasonable (30-90 minutes)
+- [ ] Total time is reasonable for your domain
 
 ## 📦 Delivery Package
 
@@ -328,49 +438,50 @@ workflow-name/
 ├── workflow.json          # Main workflow definition
 ├── prompts.md            # Detailed AI prompts for each phase
 ├── data-schema.json      # Complete data field definitions
-├── README.md            # Overview and therapeutic rationale
-└── examples/            # Sample session transcripts (optional)
+├── README.md            # Overview and business logic
+└── examples/            # Sample conversations (optional)
 ```
 
-## 🎯 Quick Start Example
+## 🎯 Quick Start Template
 
-Here's a minimal working workflow:
+Here's a minimal working workflow for ANY domain:
 
 ```json
 {
-  "workflow_name": "Quick Check-in",
+  "workflow_name": "Quick Process",
+  "domain": "general",
   "phases": [
     {
-      "id": "greeting",
-      "display_name": "Welcome",
+      "id": "start",
+      "display_name": "Introduction",
       "position": 1,
       "type": "conversational",
       "minimum_turns": 1,
       "required_data": [
-        {"name": "name", "type": "string", "required": true}
+        {"name": "user_input", "type": "string", "required": true}
       ]
     },
     {
-      "id": "pause",
-      "display_name": "Centering Pause",
+      "id": "process",
+      "display_name": "Processing",
       "position": 2,
       "type": "timed_waiting",
       "wait_duration_seconds": 30,
-      "visualization_type": "breathing_circle"
+      "visualization_type": "progress_bar"
     },
     {
-      "id": "intention",
-      "display_name": "Set Intention",
+      "id": "complete",
+      "display_name": "Wrap Up",
       "position": 3,
       "type": "conversational",
       "required_data": [
-        {"name": "session_intention", "type": "string"}
+        {"name": "feedback", "type": "string"}
       ]
     }
   ],
   "transitions": [
-    {"from_phase": "greeting", "to_phase": "pause"},
-    {"from_phase": "pause", "to_phase": "intention"}
+    {"from_phase": "start", "to_phase": "process"},
+    {"from_phase": "process", "to_phase": "complete"}
   ]
 }
 ```
