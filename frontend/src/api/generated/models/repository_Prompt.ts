@@ -20,6 +20,10 @@ export type repository_Prompt = {
      * JSON object for template vars
      */
     parameters?: string;
+    /**
+     * For timed_waiting: 'pre_wait' or 'post_wait'
+     */
+    phase_state?: string;
     updated_at?: string;
     updated_by?: string;
     usage_count?: number;

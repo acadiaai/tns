@@ -11,6 +11,9 @@ interface ChatPanelProps {
   onEditMessage?: (messageId: string, newContent: string) => void;
   className?: string;
   isCompleted?: boolean;
+  timedWaitingPhase?: any;
+  onBeginTimedWaiting?: () => void;
+  hasShownTimedPrompt?: boolean;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -19,15 +22,25 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onSendMessage,
   onEditMessage,
   className = '',
-  isCompleted = false
+  isCompleted = false,
+  timedWaitingPhase,
+  onBeginTimedWaiting,
+  hasShownTimedPrompt = false
 }) => {
   return (
     <div className={`flex flex-col h-full ${className}`}>
       {/* Connection Status */}
       <ConnectionStatus isConnected={isConnected} />
-      
+
       {/* Messages Area */}
-      <MessageList messages={messages} onEditMessage={onEditMessage} className="flex-1" />
+      <MessageList
+        messages={messages}
+        onEditMessage={onEditMessage}
+        className="flex-1"
+        timedWaitingPhase={timedWaitingPhase}
+        onBeginTimedWaiting={onBeginTimedWaiting}
+        hasShownTimedPrompt={hasShownTimedPrompt}
+      />
       
       {/* Input Area */}
       <MessageInput

@@ -41,14 +41,14 @@ export const useWebSocket = (sessionId: string): WebSocketHook => {
       }
     }
 
-    console.log('Connecting to WebSocket:', wsUrl.replace(/token=.*/, 'token=***'));
+    // console.log('Connecting to WebSocket:', wsUrl.replace(/token=.*/, 'token=***'));
 
     isConnectingRef.current = true;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('WebSocket connected');
+      // console.log('WebSocket connected');
       isConnectingRef.current = false;
       setIsConnected(true);
       // Clear any pending reconnect
@@ -56,18 +56,18 @@ export const useWebSocket = (sessionId: string): WebSocketHook => {
         clearTimeout(reconnectTimeoutRef.current);
       }
       // Request current workflow status immediately
-      console.log('🔄 WebSocket connected, requesting workflow status for session:', sessionId);
+      // console.log('🔄 WebSocket connected, requesting workflow status for session:', sessionId);
       ws.send(JSON.stringify({ type: MESSAGE_TYPES.GET_WORKFLOW_STATUS }));
     };
 
     ws.onclose = (event) => {
-      console.log('WebSocket disconnected', { code: event.code, reason: event.reason });
+      // console.log('WebSocket disconnected', { code: event.code, reason: event.reason });
       isConnectingRef.current = false;
       setIsConnected(false);
 
       // Auto-reconnect after 3 seconds if not intentional
       if (!event.wasClean && event.code !== 1000) {
-        console.log('Scheduling reconnect in 3 seconds...');
+        // console.log('Scheduling reconnect in 3 seconds...');
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
         }, 3000);

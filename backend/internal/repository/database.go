@@ -110,3 +110,21 @@ func InitDatabase() error {
 func (db *Database) Connection() *gorm.DB {
 	return db.conn
 }
+
+// GetSessionByID retrieves a session by its ID
+func GetSessionByID(sessionID string) (*Session, error) {
+	var session Session
+	if err := DB.Where("id = ?", sessionID).First(&session).Error; err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+// GetPhaseByID retrieves a phase by its ID
+func GetPhaseByID(phaseID string) (*Phase, error) {
+	var phase Phase
+	if err := DB.Where("id = ?", phaseID).First(&phase).Error; err != nil {
+		return nil, err
+	}
+	return &phase, nil
+}

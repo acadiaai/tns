@@ -82,11 +82,42 @@ func BuildTurnContext(sessionID string, phase string) (*ContextBundle, error) {
 		"phase": phase,
 	}).Info("[CONTEXT_DEBUG] Loading phase templates from database for phase")
 
+	// Check if this is a timed_waiting phase and determine pre/post wait state
+	var currentPhase repository.Phase
+	var phaseState string
+	if err := repository.DB.Where("id = ?", phase).First(&currentPhase).Error; err == nil {
+		if currentPhase.Type == "timed_waiting" {
+			// Check if wait has started
+			var phaseStateRecord repository.SessionPhaseState
+			if err := repository.DB.Where("session_id = ? AND phase_id = ?", sessionID, phase).First(&phaseStateRecord).Error; err == nil {
+				if phaseStateRecord.WaitStartedAt != nil {
+					phaseState = "post_wait"
+				} else {
+					phaseState = "pre_wait"
+				}
+			} else {
+				phaseState = "pre_wait" // Default to pre_wait if no state record
+			}
+			logger.AppLogger.WithFields(map[string]interface{}{
+				"session_id": sessionID,
+				"phase": phase,
+				"phase_state": phaseState,
+			}).Info("[CONTEXT_DEBUG] Detected timed_waiting phase, using phase_state")
+		}
+	}
+
 	var phasePrompts []repository.Prompt
-	if err := repository.DB.Where("workflow_phase = ? AND is_active = ?", phase, true).Order("created_at").Find(&phasePrompts).Error; err != nil {
+	query := repository.DB.Where("workflow_phase = ? AND is_active = ?", phase, true)
+	if phaseState != "" {
+		query = query.Where("phase_state = ?", phaseState)
+	} else {
+		query = query.Where("phase_state IS NULL OR phase_state = ''")
+	}
+	if err := query.Order("created_at").Find(&phasePrompts).Error; err != nil {
 		logger.AppLogger.WithFields(map[string]interface{}{
 			"session_id": sessionID,
 			"phase": phase,
+			"phase_state": phaseState,
 			"error":      err.Error(),
 		}).Warn("[CONTEXT_DEBUG] Failed to load phase prompts, using empty")
 	}

@@ -63,6 +63,11 @@ func migrate002Phases(db *gorm.DB) error {
 			RecommendedDurationSeconds: 180, // 3 minutes per cycle
 			Icon:                       "Brain",
 			Color:                      "#9C27B0",
+			Type:                       "timed_waiting",
+			WaitDurationSeconds:        180,
+			PreWaitMessage:             "Hold your gaze on that spot. Stay with it, observe freely. No need to analyze or control. Just notice whatever comes up.",
+			PostWaitPrompt:             "What did you observe? What came up for you during that time?",
+			VisualizationType:          "flowing_lines",
 		},
 		// Stage 5: Checking In
 		{

@@ -17,6 +17,7 @@ import (
 	"therapy-navigation-system/shared"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -569,7 +570,29 @@ func monitorSessionActivity(sessionID string) {
 			}
 
 			// If more than 2 minutes of inactivity, pause the session
+			// BUT don't auto-pause during timed_waiting phases (e.g., focused mindfulness)
 			if time.Since(lastActivity) > 2*time.Minute {
+				// Check if current phase is a timed_waiting type
+				session, err := repository.GetSessionByID(sessionID)
+				if err != nil || session == nil {
+					continue
+				}
+
+				phase, err := repository.GetPhaseByID(session.Phase)
+				if err != nil || phase == nil {
+					continue
+				}
+
+				// Skip auto-pause for timed_waiting phases
+				if phase.Type == string(repository.PhaseTypeTimedWaiting) {
+					logger.AppLogger.WithFields(map[string]interface{}{
+						"session_id": sessionID,
+						"phase": session.Phase,
+						"phase_type": phase.Type,
+					}).Info("Skipping auto-pause during timed_waiting phase")
+					continue
+				}
+
 				sessionPausedMutex.Lock()
 				sessionPaused[sessionID] = true
 				sessionPausedMutex.Unlock()
@@ -698,6 +721,84 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 			},
 			Timestamp: time.Now(),
 		})
+		return
+	}
+
+	if wsMessage.Type == "start_wait" {
+		// User clicked "Begin" to start timed waiting period
+		var session repository.Session
+		if err := repository.DB.First(&session, "id = ?", sessionID).Error; err != nil {
+			logger.AppLogger.WithError(err).Error("Failed to get session for start_wait")
+			return
+		}
+
+		// Set wait_started_at timestamp
+		now := time.Now()
+		if err := repository.DB.Model(&repository.SessionPhaseState{}).
+			Where("session_id = ? AND phase_id = ?", sessionID, session.Phase).
+			Update("wait_started_at", now).Error; err != nil {
+			logger.AppLogger.WithError(err).Error("Failed to set wait_started_at")
+			return
+		}
+
+		logger.AppLogger.WithFields(map[string]interface{}{
+			"session_id": sessionID,
+			"phase":      session.Phase,
+		}).Info("Started timed waiting period")
+
+		return
+	}
+
+	if wsMessage.Type == "end_wait" {
+		// User closed fullscreen or timer completed
+		var session repository.Session
+		if err := repository.DB.First(&session, "id = ?", sessionID).Error; err != nil {
+			logger.AppLogger.WithError(err).Error("Failed to get session for end_wait")
+			return
+		}
+
+		// Get wait_started_at to calculate duration
+		var phaseState repository.SessionPhaseState
+		if err := repository.DB.Where("session_id = ? AND phase_id = ?", sessionID, session.Phase).
+			First(&phaseState).Error; err != nil {
+			logger.AppLogger.WithError(err).Error("Failed to get phase state for end_wait")
+			return
+		}
+
+		if phaseState.WaitStartedAt != nil {
+			// Calculate processing time in minutes
+			duration := time.Since(*phaseState.WaitStartedAt)
+			processingMinutes := int(duration.Minutes())
+			if processingMinutes < 1 {
+				processingMinutes = 1 // Minimum 1 minute
+			}
+
+			// Auto-store processing_time_minutes
+			processingTimeJSON, _ := json.Marshal(processingMinutes)
+			fieldValue := repository.SessionFieldValue{
+				ID:          uuid.New().String(),
+				SessionID:   sessionID,
+				PhaseID:     session.Phase,
+				FieldName:   "processing_time_minutes",
+				FieldValue:  string(processingTimeJSON),
+				FieldType:   "int",
+				CreatedAt:   time.Now(),
+				UpdatedAt:   time.Now(),
+			}
+			repository.DB.Create(&fieldValue)
+
+			// Clear wait_started_at
+			repository.DB.Model(&repository.SessionPhaseState{}).
+				Where("session_id = ? AND phase_id = ?", sessionID, session.Phase).
+				Update("wait_started_at", nil)
+
+			logger.AppLogger.WithFields(map[string]interface{}{
+				"session_id":         sessionID,
+				"phase":              session.Phase,
+				"processing_minutes": processingMinutes,
+			}).Info("Completed timed waiting period")
+		}
+
 		return
 	}
 

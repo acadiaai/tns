@@ -232,6 +232,7 @@ type Prompt struct {
 	IsActive      bool      `gorm:"default:true" json:"is_active"`
 	IsSystem      bool      `gorm:"default:false" json:"is_system"`
 	WorkflowPhase string    `json:"workflow_phase,omitempty"` // Links to phases
+	PhaseState    string    `json:"phase_state,omitempty"` // For timed_waiting: 'pre_wait' or 'post_wait'
 	UsageCount    int       `json:"usage_count" gorm:"default:0"`
 	CreatedBy     string    `json:"created_by" gorm:"type:text"`
 	UpdatedBy     string    `json:"updated_by" gorm:"type:text"`
@@ -288,19 +289,20 @@ type SessionState struct {
 
 // SessionPhaseState tracks engagement and timing state for each phase within a session
 type SessionPhaseState struct {
-	ID                    string    `json:"id" gorm:"type:uuid;primary_key"`
-	SessionID             string    `json:"session_id" gorm:"type:uuid;not null;index"`
-	PhaseID               string    `json:"phase_id" gorm:"not null;index"`
-	MessageCount          int       `json:"message_count" gorm:"default:0"`
-	PhaseStartTime        time.Time `json:"phase_start_time"`
+	ID                    string     `json:"id" gorm:"type:uuid;primary_key"`
+	SessionID             string     `json:"session_id" gorm:"type:uuid;not null;index"`
+	PhaseID               string     `json:"phase_id" gorm:"not null;index"`
+	MessageCount          int        `json:"message_count" gorm:"default:0"`
+	PhaseStartTime        time.Time  `json:"phase_start_time"`
 	PhaseEndTime          *time.Time `json:"phase_end_time,omitempty"`
-	DurationSeconds       int       `json:"duration_seconds" gorm:"default:0"`
-	RequirementsMet       bool      `json:"requirements_met" gorm:"default:false"`
-	MinimumTurnsMet       bool      `json:"minimum_turns_met" gorm:"default:false"`
-	CanTransition         bool      `json:"can_transition" gorm:"default:false"`
-	LastMessageTime       time.Time `json:"last_message_time"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	DurationSeconds       int        `json:"duration_seconds" gorm:"default:0"`
+	RequirementsMet       bool       `json:"requirements_met" gorm:"default:false"`
+	MinimumTurnsMet       bool       `json:"minimum_turns_met" gorm:"default:false"`
+	CanTransition         bool       `json:"can_transition" gorm:"default:false"`
+	LastMessageTime       time.Time  `json:"last_message_time"`
+	WaitStartedAt         *time.Time `json:"wait_started_at,omitempty"` // For timed_waiting phases
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 
 	// Relationships
 	Session Session `json:"session,omitempty" gorm:"foreignKey:SessionID"`

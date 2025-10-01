@@ -146,7 +146,7 @@ func (m *Machine) GetPhaseGuidance(currentPhase string) (string, error) {
 
 	if len(missing) == 0 && turnsOK {
 		guidance.WriteString("✅ ALL REQUIREMENTS MET - Ready to transition!\n")
-		guidance.WriteString("Continue the therapeutic conversation naturally. The system will auto-transition when appropriate.\n")
+		guidance.WriteString("ACTION REQUIRED: The client has explicitly indicated readiness to proceed. You MUST call collect_structured_data NOW (with empty data: {}) to trigger the phase transition. Do not ask more questions.\n")
 	} else {
 		guidance.WriteString("⚠️ TRANSITION REQUIREMENTS:\n\n")
 

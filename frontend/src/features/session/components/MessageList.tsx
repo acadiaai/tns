@@ -1,16 +1,23 @@
 import React, { useRef, useEffect } from 'react';
 import { MessageBubble } from './MessageBubble';
+import { TimedWaitingPromptBubble } from './TimedWaitingPromptBubble';
 import { Message } from '../../../types/message';
 
 interface MessageListProps {
   messages: Message[];
   onEditMessage?: (messageId: string, newContent: string) => void;
   className?: string;
+  timedWaitingPhase?: any;
+  onBeginTimedWaiting?: () => void;
+  hasShownTimedPrompt?: boolean;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
-  className = ''
+  className = '',
+  timedWaitingPhase,
+  onBeginTimedWaiting,
+  hasShownTimedPrompt = false
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -35,11 +42,23 @@ export const MessageList: React.FC<MessageListProps> = ({
   return (
     <div className={`overflow-y-auto p-4 space-y-4 ${className}`}>
       {visibleMessages.map((message) => (
-        <MessageBubble 
-          key={message.id} 
+        <MessageBubble
+          key={message.id}
           message={message}
         />
       ))}
+
+      {/* Show timed waiting prompt if we're in a timed waiting phase and haven't shown it yet */}
+      {timedWaitingPhase && !hasShownTimedPrompt && onBeginTimedWaiting && (
+        <TimedWaitingPromptBubble
+          phaseName={timedWaitingPhase.display_name || 'Timed Phase'}
+          message={timedWaitingPhase.pre_wait_message || 'Ready to begin?'}
+          durationSeconds={timedWaitingPhase.wait_duration_seconds || 60}
+          visualizationType={timedWaitingPhase.visualization_type || 'flowing_lines'}
+          onBegin={onBeginTimedWaiting}
+        />
+      )}
+
       <div ref={messagesEndRef} />
     </div>
   );

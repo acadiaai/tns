@@ -1044,6 +1044,10 @@ const docTemplate = `{
                     "description": "JSON object for template vars",
                     "type": "string"
                 },
+                "phase_state": {
+                    "description": "For timed_waiting: 'pre_wait' or 'post_wait'",
+                    "type": "string"
+                },
                 "updated_at": {
                     "type": "string"
                 },

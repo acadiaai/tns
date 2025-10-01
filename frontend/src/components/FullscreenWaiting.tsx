@@ -8,19 +8,7 @@ interface FullscreenWaitingProps {
   onClose: () => void;
   durationSeconds: number;
   visualizationType?: string;
-  preWaitMessage?: string;
-  postWaitPrompt?: string;
-  title?: string;
 }
-
-const VISUALIZATION_TYPES = {
-  breathing_circle: 'Breathing Circle',
-  ocean_waves: 'Ocean Waves',
-  forest_sounds: 'Forest Ambiance',
-  mountain_view: 'Mountain Vista',
-  starfield: 'Starfield',
-  minimal: 'Minimal'
-};
 
 export const FullscreenWaiting: React.FC<FullscreenWaitingProps> = ({
   isVisible,
@@ -28,14 +16,9 @@ export const FullscreenWaiting: React.FC<FullscreenWaitingProps> = ({
   onClose,
   durationSeconds,
   visualizationType = 'breathing_circle',
-  preWaitMessage = "Please take a moment to pause and reflect.",
-  postWaitPrompt: _postWaitPrompt, // TODO: implement post-wait prompt display
-  title = "Focused Time"
 }) => {
   const [timeRemaining, setTimeRemaining] = useState(durationSeconds);
   const [isPaused, setIsPaused] = useState(false);
-  const [showMessage, setShowMessage] = useState(true);
-  const [hasStarted, setHasStarted] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const pausedTimeRef = useRef<number>(0);
@@ -47,33 +30,29 @@ export const FullscreenWaiting: React.FC<FullscreenWaitingProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Start the timer
-  const startTimer = () => {
-    setShowMessage(false);
-    setHasStarted(true);
-    startTimeRef.current = Date.now();
-    runTimer();
-  };
+  // Auto-start timer when visible
+  useEffect(() => {
+    if (isVisible && !startTimeRef.current) {
+      startTimeRef.current = Date.now();
+      timerRef.current = setInterval(() => {
+        if (!isPaused && startTimeRef.current) {
+          const elapsed = Math.floor((Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000);
+          const remaining = Math.max(0, durationSeconds - elapsed);
 
-  const runTimer = () => {
-    timerRef.current = setInterval(() => {
-      if (!isPaused && startTimeRef.current) {
-        const elapsed = Math.floor((Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000);
-        const remaining = Math.max(0, durationSeconds - elapsed);
+          setTimeRemaining(remaining);
 
-        setTimeRemaining(remaining);
-
-        if (remaining === 0) {
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
+          if (remaining === 0) {
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+            }
+            setTimeout(() => {
+              onComplete();
+            }, 1000);
           }
-          setTimeout(() => {
-            onComplete();
-          }, 1000); // Brief pause before completing
         }
-      }
-    }, 1000);
-  };
+      }, 1000);
+    }
+  }, [isVisible, isPaused, durationSeconds, onComplete]);
 
   const togglePause = () => {
     if (isPaused) {
@@ -92,31 +71,19 @@ export const FullscreenWaiting: React.FC<FullscreenWaitingProps> = ({
 
   // Cleanup timer on unmount or visibility change
   useEffect(() => {
-    if (!isVisible) {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      // Reset state
+    if (!isVisible && timerRef.current) {
+      clearInterval(timerRef.current);
       setTimeRemaining(durationSeconds);
       setIsPaused(false);
-      setShowMessage(true);
-      setHasStarted(false);
       startTimeRef.current = null;
       pausedTimeRef.current = 0;
     }
   }, [isVisible, durationSeconds]);
 
-  // Update remaining time when duration changes
-  useEffect(() => {
-    if (!hasStarted) {
-      setTimeRemaining(durationSeconds);
-    }
-  }, [durationSeconds, hasStarted]);
-
-  const progress = ((durationSeconds - timeRemaining) / durationSeconds) * 100;
-
   const renderVisualization = () => {
     switch (visualizationType) {
+      case 'flowing_lines':
+        return <FlowingLines isPaused={isPaused} />;
       case 'breathing_circle':
         return <BreathingCircle isPaused={isPaused} />;
       case 'ocean_waves':
@@ -128,7 +95,7 @@ export const FullscreenWaiting: React.FC<FullscreenWaitingProps> = ({
       case 'starfield':
         return <Starfield isPaused={isPaused} />;
       default:
-        return <MinimalVisualization isPaused={isPaused} />;
+        return <FlowingLines isPaused={isPaused} />;
     }
   };
 
@@ -151,99 +118,96 @@ export const FullscreenWaiting: React.FC<FullscreenWaitingProps> = ({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all backdrop-blur-sm"
+          className="absolute top-6 right-6 z-10 p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/60 hover:text-white transition-all backdrop-blur-xl"
         >
-          <X size={24} />
+          <X size={20} />
         </button>
 
-        {/* Main Content */}
-        <div className="relative z-10 flex flex-col items-center justify-center text-center max-w-2xl px-8">
-          {showMessage ? (
-            /* Pre-timer Message */
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center space-y-6"
-            >
-              <h2 className="text-3xl md:text-4xl font-light text-white/90 leading-relaxed">
-                {preWaitMessage}
-              </h2>
-              <p className="text-lg text-white/70">
-                {formatTime(durationSeconds)} of {title.toLowerCase()}
-              </p>
-              <button
-                onClick={startTimer}
-                className="px-8 py-3 bg-white/20 hover:bg-white/30 text-white rounded-full backdrop-blur-sm transition-all text-lg font-medium"
-              >
-                Begin
-              </button>
-            </motion.div>
-          ) : (
-            /* Timer Display */
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center space-y-6"
-            >
-              {/* Timer */}
-              <div className="relative">
-                <div className="text-6xl md:text-8xl font-light text-white/90 font-mono">
-                  {formatTime(timeRemaining)}
-                </div>
-
-                {/* Progress Ring */}
-                <svg
-                  className="absolute inset-0 w-full h-full -rotate-90"
-                  viewBox="0 0 100 100"
-                >
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    fill="transparent"
-                    stroke="white"
-                    strokeOpacity="0.1"
-                    strokeWidth="1"
-                  />
-                  <motion.circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    fill="transparent"
-                    stroke="white"
-                    strokeOpacity="0.3"
-                    strokeWidth="1"
-                    strokeDasharray="283"
-                    initial={{ strokeDashoffset: 283 }}
-                    animate={{ strokeDashoffset: 283 - (progress * 283) / 100 }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
-                  />
-                </svg>
+        {/* Timer Overlay */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute bottom-12 left-1/2 transform -translate-x-1/2 z-10"
+        >
+          <div className="flex flex-col items-center space-y-4">
+            {/* Timer Display */}
+            <div className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl">
+              <div className="text-5xl font-light text-white/90 font-mono tracking-wider">
+                {formatTime(timeRemaining)}
               </div>
+            </div>
 
-              {/* Controls */}
-              <div className="flex items-center justify-center space-x-4">
-                <button
-                  onClick={togglePause}
-                  className="p-3 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all backdrop-blur-sm"
-                >
-                  {isPaused ? <Play size={20} /> : <Pause size={20} />}
-                </button>
-              </div>
-
-              {/* Visualization Label */}
-              <p className="text-white/60 text-sm">
-                {VISUALIZATION_TYPES[visualizationType as keyof typeof VISUALIZATION_TYPES] || title}
-              </p>
-            </motion.div>
-          )}
-        </div>
+            {/* Pause Button */}
+            <button
+              onClick={togglePause}
+              className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/60 hover:text-white transition-all backdrop-blur-xl"
+              aria-label={isPaused ? "Resume" : "Pause"}
+            >
+              {isPaused ? <Play size={18} /> : <Pause size={18} />}
+            </button>
+          </div>
+        </motion.div>
       </motion.div>
     </AnimatePresence>
   );
 };
 
 // Visualization Components
+
+// Apple-style flowing lines - vivid, animated, calming with curved paths
+const FlowingLines: React.FC<{ isPaused: boolean }> = ({ isPaused }) => {
+  const lines = [
+    { color: 'from-pink-600 via-rose-500 to-orange-500', delay: 0, duration: 12, yPath: [15, 10, 20, 15] },
+    { color: 'from-blue-600 via-cyan-500 to-teal-500', delay: 1.5, duration: 14, yPath: [30, 35, 25, 30] },
+    { color: 'from-purple-600 via-violet-500 to-fuchsia-500', delay: 3, duration: 13, yPath: [45, 50, 40, 45] },
+    { color: 'from-green-600 via-emerald-500 to-lime-500', delay: 4.5, duration: 15, yPath: [60, 55, 65, 60] },
+    { color: 'from-yellow-500 via-amber-500 to-orange-500', delay: 6, duration: 11, yPath: [75, 80, 70, 75] },
+  ];
+
+  return (
+    <div className="absolute inset-0 bg-black overflow-hidden">
+      {lines.map((line, i) => (
+        <motion.div
+          key={i}
+          className={`absolute h-2 bg-gradient-to-r ${line.color} rounded-full blur-md`}
+          style={{
+            width: '50%',
+            left: '-25%',
+            opacity: 0.9,
+          }}
+          animate={isPaused ? {} : {
+            x: ['0%', '350%'],
+            y: line.yPath.map(y => `${y}vh`),
+            scaleX: [1, 1.8, 1.2, 1.5, 1],
+            scaleY: [1, 1.3, 0.8, 1.2, 1],
+            opacity: [0, 0.95, 0.85, 0.9, 0],
+          }}
+          transition={{
+            duration: line.duration,
+            repeat: Infinity,
+            delay: line.delay,
+            ease: "easeInOut"
+          }}
+        />
+      ))}
+
+      {/* Additional vivid ambient glow */}
+      <motion.div
+        className="absolute inset-0 bg-gradient-radial from-purple-600/15 via-transparent to-transparent"
+        animate={isPaused ? {} : {
+          opacity: [0.4, 0.6, 0.4],
+          scale: [1, 1.15, 1],
+        }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+      />
+    </div>
+  );
+};
+
 const BreathingCircle: React.FC<{ isPaused: boolean }> = ({ isPaused }) => (
   <div className="flex items-center justify-center h-full">
     <motion.div
@@ -321,10 +285,6 @@ const Starfield: React.FC<{ isPaused: boolean }> = ({ isPaused }) => (
       />
     ))}
   </div>
-);
-
-const MinimalVisualization: React.FC<{ isPaused: boolean }> = () => (
-  <div className="absolute inset-0 bg-gradient-to-br from-gray-800/20 to-gray-600/20" />
 );
 
 export default FullscreenWaiting;

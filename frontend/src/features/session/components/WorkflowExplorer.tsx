@@ -26,18 +26,18 @@ export const WorkflowExplorer: React.FC<WorkflowExplorerProps> = ({
   const phaseDataValues = workflowStatus?.phase_data_values || {};
 
   // DEBUG: Log what we're receiving
-  console.log('🔍 WorkflowExplorer DEBUG:', {
-    workflowStatus,
-    phaseDataValues,
-    phaseDataValuesKeys: Object.keys(phaseDataValues),
-    phases: phases?.length,
-    availableTransitions: availableTransitions?.length
-  });
+  // console.log('🔍 WorkflowExplorer DEBUG:', {
+  //   workflowStatus,
+  //   phaseDataValues,
+  //   phaseDataValuesKeys: Object.keys(phaseDataValues),
+  //   phases: phases?.length,
+  //   availableTransitions: availableTransitions?.length
+  // });
 
   // Log the first few phase data records to see structure
-  if (phases?.length > 0) {
-    console.log('🔍 First phase data structure:', phases[0]);
-  }
+  // if (phases?.length > 0) {
+  //   console.log('🔍 First phase data structure:', phases[0]);
+  // }
 
   // Organize all phases with their data
   const phasesWithData = useMemo(() => {
