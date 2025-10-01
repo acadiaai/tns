@@ -29,7 +29,7 @@ export const FullscreenWaiting: React.FC<FullscreenWaitingProps> = ({
   durationSeconds,
   visualizationType = 'breathing_circle',
   preWaitMessage = "Please take a moment to pause and reflect.",
-  postWaitPrompt,
+  postWaitPrompt: _postWaitPrompt, // TODO: implement post-wait prompt display
   title = "Focused Time"
 }) => {
   const [timeRemaining, setTimeRemaining] = useState(durationSeconds);
@@ -294,7 +294,7 @@ const ForestAmbiance: React.FC<{ isPaused: boolean }> = ({ isPaused }) => (
   </div>
 );
 
-const MountainView: React.FC<{ isPaused: boolean }> = ({ isPaused }) => (
+const MountainView: React.FC<{ isPaused: boolean }> = () => (
   <div className="absolute inset-0 bg-gradient-to-b from-slate-800/30 to-slate-600/30">
     <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-slate-700/40 via-slate-600/20 to-transparent" />
   </div>
@@ -323,7 +323,7 @@ const Starfield: React.FC<{ isPaused: boolean }> = ({ isPaused }) => (
   </div>
 );
 
-const MinimalVisualization: React.FC<{ isPaused: boolean }> = ({ isPaused }) => (
+const MinimalVisualization: React.FC<{ isPaused: boolean }> = () => (
   <div className="absolute inset-0 bg-gradient-to-br from-gray-800/20 to-gray-600/20" />
 );
 
