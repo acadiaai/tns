@@ -203,6 +203,11 @@ func (s *MCPServer) handleTransition(ctx context.Context, arguments json.RawMess
 		// Otherwise use the target as-is (assume it's a phase ID)
 	}
 
+	// Reject same-phase transitions (no-ops)
+	if targetPhase == session.Phase {
+		return nil, fmt.Errorf("cannot transition to current phase: already in %s", targetPhase)
+	}
+
 	// Validate transition
 	if !stateMachine.IsValidTransition(session.Phase, targetPhase) {
 		return nil, fmt.Errorf("invalid transition from %s to %s", session.Phase, targetPhase)
@@ -547,23 +552,50 @@ func (s *MCPServer) handleCollectStructuredData(ctx context.Context, arguments j
 			}
 		} else {
 			s.logger.WithField("session_id", args.SessionID).Info("✅ AUTO-TRANSITION SUCCESSFUL")
+
+			// Extract the resolved phase from transition result
+			resultMap, _ := result.(map[string]interface{})
+			actualNewPhase, _ := resultMap["new_phase"].(string)
+
 			transitionResult = map[string]interface{}{
 				"auto_transition_attempted": true,
 				"auto_transition_success":   true,
 				"transition_result":         result,
 			}
 
-			// Trigger coach message for phase transition
-			// This will be picked up by the WebSocket handler to generate a transition message
+			s.logger.WithFields(logrus.Fields{
+				"session_id":      args.SessionID,
+				"resolved_phase":  actualNewPhase,
+				"original_target": targetPhase,
+			}).Info("🔄 Broadcasting resolved phase for coach message generation")
+
+			// Trigger coach message generation for the new phase
 			s.broadcast(map[string]interface{}{
 				"type": "phase_transition_completed",
 				"session_id": args.SessionID,
-				"new_phase": targetPhase,
+				"new_phase": actualNewPhase,
 				"trigger_coach_message": true,
 				"timestamp": time.Now(),
 			})
 		}
 	} else {
+		// Data collected but not ready to transition
+		// Check if we should trigger coach continuation message
+		dataRequirementsComplete := dataRequirementsErr == nil
+		turnsBlocking := minimumTurnsErr != nil
+
+		if dataRequirementsComplete && turnsBlocking {
+			// All data collected, only waiting for minimum turns
+			s.logger.WithField("session_id", args.SessionID).Info("🔄 Data complete, turns blocking - triggering coach continuation")
+			s.broadcast(map[string]interface{}{
+				"type": "data_collected_continue_conversation",
+				"session_id": args.SessionID,
+				"current_phase": session.Phase,
+				"trigger_coach_message": true,
+				"timestamp": time.Now(),
+			})
+		}
+
 		s.logger.WithFields(logrus.Fields{
 			"session_id": args.SessionID,
 			"current_phase": session.Phase,

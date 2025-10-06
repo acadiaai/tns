@@ -1,13 +1,17 @@
 package api
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"therapy-navigation-system/internal/config"
 	"therapy-navigation-system/internal/logger"
 	"therapy-navigation-system/internal/repository"
 	"therapy-navigation-system/internal/services"
 	"therapy-navigation-system/shared"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // InitializeServices creates and initializes all services
@@ -79,6 +83,135 @@ func InitializeServices(cfg *config.Config) error {
 
 					logger.AppLogger.WithField("session_id", sid).Info("✅ Reset phase timer after auto-transition")
 				}
+
+				// Generate coach message after phase transitions
+				if typ == "phase_transition_completed" {
+					triggerCoach, _ := ev["trigger_coach_message"].(bool)
+					newPhase, _ := ev["new_phase"].(string)
+
+					if triggerCoach && Services.GeminiService != nil && newPhase != "" {
+						logger.AppLogger.WithFields(logrus.Fields{
+							"session_id": sid,
+							"new_phase":  newPhase,
+						}).Info("🔄 Generating coach message for new phase after auto-transition")
+
+						coachService := services.NewCoachService(Services.GeminiService)
+						ctx := context.Background()
+
+						// Generate response for new phase (synthetic message to trigger text response)
+						response, err := coachService.GenerateResponse(ctx, sid, "[SYSTEM: Welcome the user to the new phase with an appropriate opening message. Do not call tools.]", newPhase)
+
+						// DEBUG: Log response state to diagnose why retry isn't executing
+						logger.AppLogger.WithFields(logrus.Fields{
+							"session_id":      sid,
+							"err_nil":         err == nil,
+							"response_nil":    response == nil,
+							"tool_calls_count": func() int {
+								if response != nil {
+									return len(response.ToolCalls)
+								}
+								return -1
+							}(),
+							"message_empty": func() bool {
+								if response != nil {
+									return strings.TrimSpace(response.Message) == ""
+								}
+								return false
+							}(),
+						}).Info("🐛 DEBUG: phase_transition_completed response state")
+
+						if err != nil {
+							logger.AppLogger.WithError(err).Error("❌ Failed to generate coach message after transition")
+						} else if response != nil && len(response.ToolCalls) > 0 && strings.TrimSpace(response.Message) == "" {
+							// AI returned tool calls but no text - generate immediate follow-up
+							logger.AppLogger.Info("🔄 Empty response with tool calls after transition - retrying once")
+							response, err = coachService.GenerateResponse(ctx, sid, "[SYSTEM: Welcome the user to the new phase with an appropriate opening message. Do not call tools.]", newPhase)
+						}
+
+						if err == nil && response != nil && strings.TrimSpace(response.Message) != "" {
+							// Save coach message to database
+							coachMsg := &repository.Message{
+								ID:        fmt.Sprintf("msg_%d", time.Now().UnixNano()),
+								SessionID: sid,
+								Role:      "coach",
+								Content:   strings.TrimSpace(response.Message),
+								CreatedAt: time.Now(),
+								UpdatedAt: time.Now(),
+							}
+
+							if err := repository.DB.Create(coachMsg).Error; err != nil {
+								logger.AppLogger.WithError(err).Error("Failed to save coach transition message")
+							} else {
+								// Broadcast coach message to frontend
+								broadcastSessionUpdate(sid, shared.TherapySessionUpdate{
+									Type:      "message",
+									Message:   convertMessage(coachMsg),
+									Timestamp: time.Now(),
+								})
+
+								logger.AppLogger.WithFields(logrus.Fields{
+									"session_id": sid,
+									"new_phase":  newPhase,
+								}).Info("✅ Coach transition message sent successfully")
+							}
+						}
+					}
+				}
+
+				// Generate coach message when data complete but minimum turns not met
+				if typ == "data_collected_continue_conversation" {
+					triggerCoach, _ := ev["trigger_coach_message"].(bool)
+					currentPhase, _ := ev["current_phase"].(string)
+
+					if triggerCoach && Services.GeminiService != nil && currentPhase != "" {
+						logger.AppLogger.WithFields(logrus.Fields{
+							"session_id":    sid,
+							"current_phase": currentPhase,
+						}).Info("🔄 Data collected but transition blocked - generating coach message to continue conversation")
+
+						coachService := services.NewCoachService(Services.GeminiService)
+						ctx := context.Background()
+
+						// Generate response to continue conversation (synthetic message to trigger text response)
+						response, err := coachService.GenerateResponse(ctx, sid, "[SYSTEM: Continue the conversation naturally with the user. Do not call tools.]", currentPhase)
+
+						if err != nil {
+							logger.AppLogger.WithError(err).Error("❌ Failed to generate coach continuation message")
+						} else if response != nil && len(response.ToolCalls) > 0 && strings.TrimSpace(response.Message) == "" {
+							// AI returned tool calls but no text - generate immediate follow-up
+							logger.AppLogger.Info("🔄 Empty response with tool calls in-phase - retrying once")
+							response, err = coachService.GenerateResponse(ctx, sid, "[SYSTEM: Continue the conversation naturally with the user. Do not call tools.]", currentPhase)
+						}
+
+						if err == nil && response != nil && strings.TrimSpace(response.Message) != "" {
+							// Save coach message to database
+							coachMsg := &repository.Message{
+								ID:        fmt.Sprintf("msg_%d", time.Now().UnixNano()),
+								SessionID: sid,
+								Role:      "coach",
+								Content:   strings.TrimSpace(response.Message),
+								CreatedAt: time.Now(),
+								UpdatedAt: time.Now(),
+							}
+
+							if err := repository.DB.Create(coachMsg).Error; err != nil {
+								logger.AppLogger.WithError(err).Error("Failed to save coach continuation message")
+							} else {
+								// Broadcast coach message to frontend
+								broadcastSessionUpdate(sid, shared.TherapySessionUpdate{
+									Type:      "message",
+									Message:   convertMessage(coachMsg),
+									Timestamp: time.Now(),
+								})
+
+								logger.AppLogger.WithFields(logrus.Fields{
+									"session_id":    sid,
+									"current_phase": currentPhase,
+								}).Info("✅ Coach continuation message sent successfully")
+							}
+						}
+					}
+				}
 			} else {
 				logger.AppLogger.WithField("event", ev).Debug("MCP event (no session routing)")
 			}
@@ -89,11 +222,8 @@ func InitializeServices(cfg *config.Config) error {
 
 	if err := InitializeMCPServer(logger.AppLogger, broadcastFunc); err != nil {
 		logger.AppLogger.WithError(err).Fatal("❌ CRITICAL: Failed to initialize MCP server - cannot continue")
-	} else {
-		logger.AppLogger.Info("✅ MCP server initialized successfully")
-
-		// Conductor system removed - no autonomous AI
 	}
+	// Conductor system removed - no autonomous AI
 
 	// Set up metrics callbacks to avoid circular imports
 	services.SetMetricsCallbacks(

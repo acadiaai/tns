@@ -114,11 +114,11 @@ func (m *Machine) GetPhaseGuidance(currentPhase string) (string, error) {
 		return "", fmt.Errorf("failed to get phase requirements: %w", err)
 	}
 
-	// Check what's missing
-	var missing []string
+	// Check what's missing (keep full PhaseData for descriptions)
+	var missingFields []repository.PhaseData
 	for _, req := range required {
 		if !m.isFieldPopulated(session, req.Name) {
-			missing = append(missing, req.Name)
+			missingFields = append(missingFields, req)
 		}
 	}
 
@@ -128,10 +128,10 @@ func (m *Machine) GetPhaseGuidance(currentPhase string) (string, error) {
 		return "", fmt.Errorf("phase not found: %w", err)
 	}
 
-	// Count total messages for turn calculation
+	// Count messages since current phase started (match validateMinimumTurns logic)
 	var messageCount int64
 	if err := repository.DB.Model(&repository.Message{}).
-		Where("session_id = ?", m.sessionID).
+		Where("session_id = ? AND created_at >= ?", m.sessionID, session.PhaseStartTime).
 		Count(&messageCount).Error; err != nil {
 		return "", fmt.Errorf("failed to count messages: %w", err)
 	}
@@ -144,31 +144,44 @@ func (m *Machine) GetPhaseGuidance(currentPhase string) (string, error) {
 	// Build simple guidance message
 	var guidance strings.Builder
 
-	if len(missing) == 0 && turnsOK {
+	if len(missingFields) == 0 && turnsOK {
 		guidance.WriteString("✅ ALL REQUIREMENTS MET - Ready to transition!\n")
 		guidance.WriteString("ACTION REQUIRED: The client has explicitly indicated readiness to proceed. You MUST call collect_structured_data NOW (with empty data: {}) to trigger the phase transition. Do not ask more questions.\n")
 	} else {
 		guidance.WriteString("⚠️ TRANSITION REQUIREMENTS:\n\n")
 
 		// Show data requirements with specific guidance
-		if len(missing) > 0 {
+		if len(missingFields) > 0 {
 			guidance.WriteString("❌ DATA REQUIREMENTS:\n")
-			for _, field := range missing {
-				if field == "consent_given" {
-					guidance.WriteString("- consent_given: ASK patient for consent and WAIT for their explicit agreement before calling collect_structured_data\n")
-				} else {
-					guidance.WriteString(fmt.Sprintf("- %s: WAIT for patient to provide this information, then use collect_structured_data\n", field))
-				}
+			for _, field := range missingFields {
+				guidance.WriteString(fmt.Sprintf("- %s: %s\n",
+					field.Name, field.Description))
 			}
-			guidance.WriteString("\n🔧 IMPORTANT: Only call collect_structured_data() AFTER patient provides the required information.\n\n")
+			guidance.WriteString("\n🔧 CRITICAL INSTRUCTIONS FOR DATA COLLECTION:\n")
+			guidance.WriteString("- The patient may provide required data at ANY point in the conversation, not just when directly asked\n")
+			guidance.WriteString("- When you receive ANY required data (whether asked for or volunteered), IMMEDIATELY call collect_structured_data\n")
+			guidance.WriteString("- You can collect multiple fields in ONE tool call: {\"selected_issue\": \"...\", \"issue_intensity\": 8}\n")
+			guidance.WriteString("- ALWAYS provide conversational text along with tool calls\n")
+			guidance.WriteString("- If patient provides multiple data points in one message, collect them ALL in that turn\n\n")
 		} else {
 			guidance.WriteString("✅ DATA REQUIREMENTS: Complete\n\n")
 		}
 
 		// Show turn requirements
 		if !turnsOK {
-			guidance.WriteString(fmt.Sprintf("❌ MINIMUM TURNS: Need %d more turns (%d/%d)\n\n",
+			guidance.WriteString(fmt.Sprintf("❌ MINIMUM TURNS: Need %d more turns (%d/%d)\n",
 				turnsNeeded, currentTurns, phase.MinimumTurns))
+
+			// Special guidance when data is complete but turns aren't met
+			if len(missingFields) == 0 {
+				guidance.WriteString("\n💬 CONTINUE CONVERSATION:\n")
+				guidance.WriteString("- All required data has been collected\n")
+				guidance.WriteString("- Continue natural conversation to meet minimum turn requirement\n")
+				guidance.WriteString("- DO NOT re-ask for data already collected\n")
+				guidance.WriteString("- When minimum turns are met, call collect_structured_data with empty data: {} to transition\n\n")
+			} else {
+				guidance.WriteString("\n")
+			}
 		} else {
 			guidance.WriteString("✅ MINIMUM TURNS: Complete\n\n")
 		}

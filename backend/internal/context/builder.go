@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -196,6 +195,27 @@ func BuildTurnContext(sessionID string, phase string) (*ContextBundle, error) {
 	workingMemory := buildWorkingMemory(sessionID)
 	logger.AppLogger.WithField("session_id", sessionID).Info("[CONTEXT_DEBUG] Working memory built")
 
+	// 4.5) Detect post-transition scenario and add explicit instruction
+	phaseTransitionInstruction := ""
+	var session repository.Session
+	if err := repository.DB.First(&session, "id = ?", sessionID).Error; err == nil {
+		// Check if phase just started (within last 3 seconds) AND working memory exists
+		timeSincePhaseStart := time.Since(session.PhaseStartTime)
+		if timeSincePhaseStart < 3*time.Second && workingMemory != "" {
+			phaseTransitionInstruction = `
+PHASE TRANSITION DETECTED:
+You just transitioned to a new phase. The previous conversation is shown in Working Memory above.
+DO NOT greet the client again - you already did that in the previous phase.
+Instead, begin this new phase by asking the first appropriate question or making a relevant statement for this phase's purpose.
+Reference the previous conversation naturally to maintain continuity.`
+			logger.AppLogger.WithFields(map[string]interface{}{
+				"session_id":         sessionID,
+				"phase":              phase,
+				"time_since_start":   timeSincePhaseStart.Seconds(),
+			}).Info("[CONTEXT_DEBUG] Post-transition detected - adding explicit instruction")
+		}
+	}
+
 	// 5) Retrieval removed - ChromaDB integration deleted
 
 	// 6) Single universal MCP tool - handles everything
@@ -253,6 +273,12 @@ func BuildTurnContext(sessionID string, phase string) (*ContextBundle, error) {
 		sb.WriteString(finalWorking)
 	}
 
+	// Add phase transition instruction if detected
+	if phaseTransitionInstruction != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(phaseTransitionInstruction)
+	}
+
 	// Add phase requirements and transitions from state machine
 	phaseContext := buildPhaseContextFromStateMachine(sessionID, phase)
 	if phaseContext != "" {
@@ -270,7 +296,7 @@ func BuildTurnContext(sessionID string, phase string) (*ContextBundle, error) {
 	sb.WriteString("\n\nTOOLS\n")
 	sb.WriteString(finalTools)
 	sb.WriteString(fmt.Sprintf("\n\nSESSION INFO\nCurrent Session ID: %s (use this exact ID in all tool calls)\n", sessionID))
-	sb.WriteString("\n\nCONSTRAINTS\n- Be concise and professional.\n- When transitioning phases, provide a clear response that guides the user smoothly into the next phase.\n- Continue the conversation naturally after using tools - don't just say 'Okay'.\n")
+	sb.WriteString("\n\nCONSTRAINTS\n\n🚨 CRITICAL RULE: ALWAYS provide text in EVERY response, even when calling tools\n\nTool Usage Examples:\n\n❌ BAD (tool call only, no text):\n[Calls collect_structured_data]\n[Returns empty text]\n\n✅ GOOD (tool call + text response):\n[Calls collect_structured_data]\n\"Thank you for sharing that. As you stay with that feeling in your chest, what do you notice?\"\n\nRules:\n- You MUST provide a text response in EVERY turn, even when calling tools\n- Tools execute silently in the background - users never see tool calls\n- After calling a tool, continue the conversation naturally\n- NEVER announce tool usage: Don't say \"I'm going to collect/gather/record that\"\n- NEVER repeat back what the user just said before calling a tool\n- If data was already collected in a previous phase (visible in Working Memory), DO NOT collect it again\n- Be concise and professional\n- When transitioning phases, guide the user smoothly into the next phase\n")
 
 	constructed := sb.String()
 
@@ -345,7 +371,7 @@ func buildAwarenessSummary(sessionID string) string {
 
 func buildWorkingMemory(sessionID string) string {
 	logger.AppLogger.WithField("session_id", sessionID).Info("[CONTEXT_DEBUG] buildWorkingMemory: Starting function")
-	
+
 	var messages []repository.Message
 	logger.AppLogger.WithField("session_id", sessionID).Info("[CONTEXT_DEBUG] buildWorkingMemory: About to query database")
 	_ = repository.DB.Where("session_id = ?", sessionID).Order("created_at DESC").Limit(30).Find(&messages)
@@ -353,27 +379,45 @@ func buildWorkingMemory(sessionID string) string {
 		"session_id": sessionID,
 		"message_count": len(messages),
 	}).Info("[CONTEXT_DEBUG] buildWorkingMemory: Database query completed")
-	
-	// newest first; render oldest to newest
-	logger.AppLogger.WithField("session_id", sessionID).Info("[CONTEXT_DEBUG] buildWorkingMemory: About to sort messages")
-	sort.Slice(messages, func(i, j int) bool { return messages[i].CreatedAt.Before(messages[j].CreatedAt) })
-	logger.AppLogger.WithField("session_id", sessionID).Info("[CONTEXT_DEBUG] buildWorkingMemory: Messages sorted")
 
-	var sb strings.Builder
-	// cap roughly to ~1200 chars (~300 tokens) for POC
-	const capChars = 1200
+	// Sliding window approach: collect MOST RECENT messages until hitting token budget
+	// Industry standard: 8K-16K tokens for chatbot working memory (2025 best practices)
+	const capChars = 10000 // ~2500 tokens = last 15-20 exchanges
+
+	// Collect recent messages (newest first from query)
+	var recentMessages []repository.Message
+	charCount := 0
 	for i := range messages {
-		role := "Patient"
-		if messages[i].Role == "therapist" || messages[i].Role == "coach" {
-			role = "Therapist"
-		}
+		// Domain-agnostic: capitalize database role directly
+		role := strings.Title(messages[i].Role) // "client" -> "Client", "coach" -> "Coach"
 		line := fmt.Sprintf("%s: %s\n", role, messages[i].Content)
-		if sb.Len()+len(line) > capChars {
-			// stop if exceeding cap
+		if charCount + len(line) > capChars {
 			break
 		}
-		sb.WriteString(line)
+		recentMessages = append(recentMessages, messages[i])
+		charCount += len(line)
 	}
+
+	logger.AppLogger.WithFields(map[string]interface{}{
+		"session_id": sessionID,
+		"total_messages": len(messages),
+		"included_messages": len(recentMessages),
+		"char_count": charCount,
+	}).Info("[CONTEXT_DEBUG] buildWorkingMemory: Collected recent messages")
+
+	// Reverse to render chronologically (oldest to newest)
+	for i, j := 0, len(recentMessages)-1; i < j; i, j = i+1, j-1 {
+		recentMessages[i], recentMessages[j] = recentMessages[j], recentMessages[i]
+	}
+
+	// Build final string
+	var sb strings.Builder
+	for i := range recentMessages {
+		// Domain-agnostic: capitalize database role directly
+		role := strings.Title(recentMessages[i].Role) // "client" -> "Client", "coach" -> "Coach"
+		sb.WriteString(fmt.Sprintf("%s: %s\n", role, recentMessages[i].Content))
+	}
+
 	return sb.String()
 }
 
