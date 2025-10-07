@@ -494,7 +494,7 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
                     sessionId={sessionId}
                     workflowStatus={workflowStatus}
                     currentPhase={currentPhase}
-                    phases={phases}
+                    phases={workflowStatus?.phases || phases}
                     availableTransitions={workflowStatus?.transitions}
                     isCompleted={isCompleted}
                   />

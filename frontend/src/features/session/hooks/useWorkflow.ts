@@ -95,31 +95,17 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
             setSessionStatus(data.session_status);
           }
 
-          console.log('🔄 SESSION STATUS UPDATE:', {
-            type: data.type,
-            phase: data.phase,
-            phase_data_values: data.phase_data_values,
-            phases: data.phases?.length,
-            fullData: data
-          });
 
           setWorkflowStatus(workflowState);
           setIsLoading(false);
 
-          // If initial state, immediately log messages
-          if (data.type === 'initial_state' && data.recent_messages) {
-            console.log('📨 Initial messages received:', data.recent_messages);
-          }
+          // Initial messages received
         } else if (data.type === 'workflow_update') {
           // Handle workflow updates from MCP tools
           const phaseDataValues = data.phase_data_values || {};
           const phase = data.phase;
 
-          console.log('🔄 WORKFLOW UPDATE:', {
-            phase: phase,
-            phase_data_values: phaseDataValues,
-            fullData: data
-          });
+          // Workflow update received
 
           setWorkflowStatus(prevStatus => {
             if (!prevStatus) {
@@ -148,13 +134,7 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
           const toPhase = data.metadata?.to_phase || data.phase;
           const reason = data.metadata?.reason;
 
-          console.log('🔄 PHASE TRANSITION EVENT:', {
-            from: fromPhase,
-            to: toPhase,
-            reason: reason,
-            phase_data_values: phaseDataValues,
-            data
-          });
+          // Phase transition event received
 
           setWorkflowStatus(prevStatus => {
             if (!prevStatus) {
@@ -186,7 +166,6 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
                 timestamp: data.timestamp
               }
             };
-            console.log('🔄 UPDATING WORKFLOW STATE:', { prevStatus, newStatus });
             return newStatus;
           });
           setIsLoading(false);
@@ -202,7 +181,7 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
 
           // Handle timer completion
           if (data.type === 'phase_timer_completed') {
-            console.log('⏰ TIMER COMPLETED for phase:', meta.phase);
+            // Timer completed
             setTimer({
               elapsed: Number(meta.total ?? 600), // Set to total duration
               remaining: 0,
@@ -220,14 +199,11 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
           }
           setIsLoading(false);
         } else if (data.type === 'session_paused') {
-          console.log('⏸️ SESSION PAUSED');
           setIsPaused(true);
         } else if (data.type === 'session_resumed') {
-          console.log('▶️ SESSION RESUMED');
           setIsPaused(false);
         } else if (data.type === 'session_completed') {
           // Handle session completion WebSocket event
-          console.log('🎉 SESSION COMPLETED EVENT:', data);
 
           setWorkflowStatus(prevStatus => {
             if (!prevStatus) return prevStatus;
@@ -244,20 +220,14 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
           // Timer updates use metadata for timer-specific data (special event type)
           const timerData = data.metadata as SessionTimer;
           if (timerData) {
-            console.log('⏱️ TIMER UPDATE received:', {
-              session_elapsed: timerData.session_elapsed_seconds,
-              phase_elapsed: timerData.phase_elapsed_seconds,
-              is_paused: timerData.is_paused
-            });
+            // Timer update received
             setSessionTimer(timerData);
             if (timerData.is_paused !== undefined) {
               setIsPaused(timerData.is_paused);
             }
           }
         } else if (data.type === 'wait_completed') {
-          // Timed waiting period completed
-          console.log('✅ WAIT COMPLETED:', data.metadata);
-          // Dispatch custom event for SessionDashboard to handle
+          // Timed waiting period completed - dispatch custom event for SessionDashboard to handle
           window.dispatchEvent(new CustomEvent('wait_completed', {
             detail: {
               phase: data.metadata?.phase,
@@ -276,7 +246,7 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
     // Listen for phase transitions detected from tool call metadata (from useMessages)
     const handlePhaseTransition = (event: Event) => {
       const customEvent = event as CustomEvent;
-      console.log('🔄 CUSTOM PHASE TRANSITION EVENT:', customEvent.detail);
+      // Custom phase transition event received
       const { from_phase, to_phase, timestamp } = customEvent.detail;
 
       setWorkflowStatus(prevStatus => {
@@ -292,7 +262,6 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
             timestamp: timestamp
           }
         };
-        console.log('🔄 UPDATING WORKFLOW STATE FROM CUSTOM EVENT:', { prevStatus, newStatus });
         return newStatus;
       });
       setIsLoading(false);
@@ -331,19 +300,13 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
     };
   }, [ws, sessionId]);
 
-  // Track phase changes and session start for fallback timer
+  // Track phase changes for phase timer
   useEffect(() => {
     const newPhase = workflowStatus?.current_state || '';
 
-    // Track session initialization
-    if (workflowStatus && newPhase !== 'pre_session' && newPhase) {
-      console.log('🎬 Session started:', new Date());
-    }
-
-    // Track phase changes for phase timer
+    // Track phase changes
     if (newPhase && newPhase !== currentPhaseId) {
       setCurrentPhaseId(newPhase);
-      console.log(`🔄 Phase changed to ${newPhase}:`, new Date());
     }
   }, [workflowStatus?.current_state, currentPhaseId]);
 

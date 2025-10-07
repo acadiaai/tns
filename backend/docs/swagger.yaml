@@ -91,6 +91,17 @@ definitions:
           $ref: '#/definitions/api.VisitNode'
         type: array
     type: object
+  api.TransitionRequest:
+    properties:
+      condition:
+        type: string
+      from_phase_id:
+        type: string
+      priority:
+        type: integer
+      to_phase_id:
+        type: string
+    type: object
   api.UpdatePhaseRequest:
     properties:
       color:
@@ -535,6 +546,27 @@ paths:
       summary: Get phase tools
       tags:
       - phases
+  /api/phases/{phaseId}/transitions:
+    get:
+      description: Retrieve all transitions FROM a specific phase
+      parameters:
+      - description: Phase ID
+        in: path
+        name: phaseId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/repository.PhaseTransition'
+            type: array
+      summary: Get phase transitions
+      tags:
+      - transitions
   /api/phases/auto-advance/{session_id}:
     get:
       consumes:
@@ -777,6 +809,69 @@ paths:
       summary: Get all tools
       tags:
       - tools
+  /api/transitions:
+    post:
+      consumes:
+      - application/json
+      description: Create a new transition between phases
+      parameters:
+      - description: Transition data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.TransitionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/repository.PhaseTransition'
+      summary: Create phase transition
+      tags:
+      - transitions
+  /api/transitions/{id}:
+    delete:
+      description: Soft-delete a transition by setting is_active to false
+      parameters:
+      - description: Transition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete phase transition
+      tags:
+      - transitions
+    put:
+      consumes:
+      - application/json
+      description: Update an existing transition's condition or priority
+      parameters:
+      - description: Transition ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated transition data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.TransitionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/repository.PhaseTransition'
+      summary: Update phase transition
+      tags:
+      - transitions
   /api/workflow/prompts:
     get:
       description: Get all currently active prompts for all phases

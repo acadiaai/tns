@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   GitBranch, Settings, FileText, Database, Clock, MessageSquare,
   Save, History, ChevronRight, Edit2, AlertCircle,
-  CheckCircle, RefreshCw, Layers, Timer
+  CheckCircle, RefreshCw, Layers, Timer, ArrowRightLeft
 } from 'lucide-react';
 import { PhaseIcon } from '../utils/iconMapper';
 import { apiUrl } from '../config/api';
@@ -33,6 +33,16 @@ interface PhaseData {
   data_type: string;
 }
 
+interface PhaseTransition {
+  id: string;
+  from_phase_id: string;
+  to_phase_id: string;
+  condition: string;
+  priority: number;
+  is_active: boolean;
+  to_phase?: Phase;
+}
+
 interface Prompt {
   id: string;
   phase_id: string;
@@ -53,13 +63,13 @@ interface PromptVersion {
   created_by?: string;
 }
 
-type TabType = 'phases' | 'prompts' | 'data' | 'visualization';
+type TabType = 'phases' | 'prompts' | 'data' | 'transitions' | 'visualization';
 
 export const WorkflowStudio: React.FC = () => {
   // Get initial tab from URL hash
   const getInitialTab = (): TabType => {
     const hash = window.location.hash.slice(1) as TabType;
-    return ['phases', 'prompts', 'data', 'visualization'].includes(hash) ? hash : 'phases';
+    return ['phases', 'prompts', 'data', 'transitions', 'visualization'].includes(hash) ? hash : 'phases';
   };
 
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab());
@@ -74,11 +84,14 @@ export const WorkflowStudio: React.FC = () => {
   const [prompts, setPrompts] = useState<Record<string, Prompt>>({});
   const [promptHistory, setPromptHistory] = useState<PromptVersion[]>([]);
   const [phaseData, setPhaseData] = useState<Record<string, PhaseData[]>>({});
+  const [transitions, setTransitions] = useState<Record<string, PhaseTransition[]>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingPhase, setEditingPhase] = useState<Phase | null>(null);
   const [editingPrompt, setEditingPrompt] = useState<string>('');
   const [showHistory, setShowHistory] = useState(false);
+  const [editingTransition, setEditingTransition] = useState<PhaseTransition | null>(null);
+  const [newTransition, setNewTransition] = useState<{to_phase_id: string, condition: string, priority: number} | null>(null);
 
   useEffect(() => {
     loadWorkflowData();
@@ -90,8 +103,9 @@ export const WorkflowStudio: React.FC = () => {
 
       // Load phases
       const phasesRes = await fetchWithAuth(apiUrl('/api/phases'));
+      let phasesData: Phase[] = [];
       if (phasesRes.ok) {
-        const phasesData = await phasesRes.json();
+        phasesData = await phasesRes.json();
         setPhases(phasesData.sort((a: Phase, b: Phase) => a.position - b.position));
         if (phasesData.length > 0 && !selectedPhase) {
           setSelectedPhase(phasesData[0]);
@@ -128,6 +142,17 @@ export const WorkflowStudio: React.FC = () => {
         });
         setPhaseData(phaseDataMap);
       }
+
+      // Load transitions for all phases
+      const transitionsMap: Record<string, PhaseTransition[]> = {};
+      for (const phase of phasesData) {
+        const transitionsRes = await fetchWithAuth(apiUrl(`/api/phases/${phase.id}/transitions`));
+        if (transitionsRes.ok) {
+          const transitionsData = await transitionsRes.json();
+          transitionsMap[phase.id] = transitionsData;
+        }
+      }
+      setTransitions(transitionsMap);
     } catch (error) {
       console.error('Error loading workflow data:', error);
     } finally {
@@ -301,6 +326,17 @@ export const WorkflowStudio: React.FC = () => {
             >
               <Database className="w-4 h-4" />
               Phase Data
+            </button>
+            <button
+              onClick={() => handleTabChange('transitions')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                activeTab === 'transitions'
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              Transitions
             </button>
             <button
               onClick={() => handleTabChange('visualization')}
@@ -671,6 +707,241 @@ export const WorkflowStudio: React.FC = () => {
                         <Database className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>No data fields configured for this phase</p>
                       </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Transitions Tab */}
+              {activeTab === 'transitions' && selectedPhase && (
+                <motion.div
+                  key="transitions"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="bg-white/5 rounded-xl border border-white/10 p-6"
+                >
+                  <div className="mb-6">
+                    <h2 className="text-xl font-semibold mb-2">Phase Transitions</h2>
+                    <p className="text-sm text-white/50">
+                      Configure transitions FROM {selectedPhase.display_name} to other phases
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {transitions[selectedPhase.id]?.length > 0 ? (
+                      transitions[selectedPhase.id].map((transition) => (
+                        <div
+                          key={transition.id}
+                          className="p-4 bg-white/5 rounded-lg border border-white/10"
+                        >
+                          {editingTransition?.id === transition.id ? (
+                            /* Editing Mode */
+                            <div className="space-y-3">
+                              <div>
+                                <label className="text-xs text-white/60 mb-1 block">Condition (optional)</label>
+                                <input
+                                  type="text"
+                                  value={editingTransition.condition}
+                                  onChange={(e) => setEditingTransition({ ...editingTransition, condition: e.target.value })}
+                                  placeholder="e.g., suds_current > 0"
+                                  className="w-full px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-white/60 mb-1 block">Priority</label>
+                                <input
+                                  type="number"
+                                  value={editingTransition.priority}
+                                  onChange={(e) => setEditingTransition({ ...editingTransition, priority: parseInt(e.target.value) })}
+                                  className="w-full px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm text-white"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={async () => {
+                                    setSaving(true);
+                                    try {
+                                      const response = await fetchWithAuth(apiUrl(`/api/transitions/${transition.id}`), {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          from_phase_id: transition.from_phase_id,
+                                          to_phase_id: transition.to_phase_id,
+                                          condition: editingTransition.condition,
+                                          priority: editingTransition.priority
+                                        })
+                                      });
+                                      if (response.ok) {
+                                        await loadWorkflowData();
+                                        setEditingTransition(null);
+                                      }
+                                    } catch (error) {
+                                      console.error('Error updating transition:', error);
+                                    } finally {
+                                      setSaving(false);
+                                    }
+                                  }}
+                                  disabled={saving}
+                                  className="px-3 py-1.5 bg-green-500/20 border border-green-500/30 rounded-lg text-xs text-green-400 hover:bg-green-500/30"
+                                >
+                                  <CheckCircle className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingTransition(null)}
+                                  className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-white/60 hover:bg-white/10"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* View Mode */
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="font-medium">To: {transition.to_phase?.display_name || transition.to_phase_id}</span>
+                                  <span className="px-2 py-0.5 text-xs rounded-full bg-violet-500/20 text-violet-400 border border-violet-500/30">
+                                    Priority: {transition.priority}
+                                  </span>
+                                </div>
+                                {transition.condition ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-white/50">Condition:</span>
+                                    <code className="text-xs px-1.5 py-0.5 rounded bg-black/20 text-white/60">
+                                      {transition.condition}
+                                    </code>
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-white/60">Default transition (no condition)</p>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => setEditingTransition(transition)}
+                                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                                >
+                                  <Edit2 className="w-4 h-4 text-white/60" />
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (confirm('Delete this transition?')) {
+                                      setSaving(true);
+                                      try {
+                                        await fetchWithAuth(apiUrl(`/api/transitions/${transition.id}`), {
+                                          method: 'DELETE'
+                                        });
+                                        await loadWorkflowData();
+                                      } catch (error) {
+                                        console.error('Error deleting transition:', error);
+                                      } finally {
+                                        setSaving(false);
+                                      }
+                                    }
+                                  }}
+                                  className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
+                                >
+                                  <AlertCircle className="w-4 h-4 text-red-400" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-12 text-white/40">
+                        <ArrowRightLeft className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>No transitions configured from this phase</p>
+                      </div>
+                    )}
+
+                    {/* Add New Transition */}
+                    {newTransition ? (
+                      <div className="p-4 bg-green-500/5 rounded-lg border border-green-500/20">
+                        <h4 className="text-sm font-medium mb-3">New Transition</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-xs text-white/60 mb-1 block">To Phase</label>
+                            <select
+                              value={newTransition.to_phase_id}
+                              onChange={(e) => setNewTransition({ ...newTransition, to_phase_id: e.target.value })}
+                              className="w-full px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm text-white"
+                            >
+                              <option value="">Select target phase...</option>
+                              {phases.filter(p => p.id !== selectedPhase.id).map(phase => (
+                                <option key={phase.id} value={phase.id}>{phase.display_name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-white/60 mb-1 block">Condition (optional)</label>
+                            <input
+                              type="text"
+                              value={newTransition.condition}
+                              onChange={(e) => setNewTransition({ ...newTransition, condition: e.target.value })}
+                              placeholder="e.g., suds_current > 0"
+                              className="w-full px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-white/60 mb-1 block">Priority</label>
+                            <input
+                              type="number"
+                              value={newTransition.priority}
+                              onChange={(e) => setNewTransition({ ...newTransition, priority: parseInt(e.target.value) })}
+                              className="w-full px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm text-white"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                if (!newTransition.to_phase_id) {
+                                  alert('Please select a target phase');
+                                  return;
+                                }
+                                setSaving(true);
+                                try {
+                                  const response = await fetchWithAuth(apiUrl('/api/transitions'), {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      from_phase_id: selectedPhase.id,
+                                      to_phase_id: newTransition.to_phase_id,
+                                      condition: newTransition.condition,
+                                      priority: newTransition.priority
+                                    })
+                                  });
+                                  if (response.ok) {
+                                    await loadWorkflowData();
+                                    setNewTransition(null);
+                                  }
+                                } catch (error) {
+                                  console.error('Error creating transition:', error);
+                                } finally {
+                                  setSaving(false);
+                                }
+                              }}
+                              disabled={saving}
+                              className="px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-lg text-sm text-green-400 hover:bg-green-500/30"
+                            >
+                              Create Transition
+                            </button>
+                            <button
+                              onClick={() => setNewTransition(null)}
+                              className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white/60 hover:bg-white/10"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setNewTransition({ to_phase_id: '', condition: '', priority: 0 })}
+                        className="w-full py-3 border-2 border-dashed border-white/20 rounded-lg text-white/60 hover:text-white hover:border-white/40 transition-colors"
+                      >
+                        + Add Transition
+                      </button>
                     )}
                   </div>
                 </motion.div>

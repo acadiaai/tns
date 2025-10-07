@@ -62,7 +62,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		// Skip auth for local development
 		if strings.Contains(r.Host, "localhost") || strings.Contains(r.Host, "127.0.0.1") {
-			logger.AppLogger.Info("Local development mode - bypassing auth")
+			// Silent bypass for local development - reduces log noise
 			ctx := context.WithValue(r.Context(), "user_email", "dev@localhost")
 			ctx = context.WithValue(ctx, "user_uid", "local-dev-user")
 			next(w, r.WithContext(ctx))

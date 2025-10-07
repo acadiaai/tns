@@ -300,6 +300,38 @@
                 }
             }
         },
+        "/api/phases/{phaseId}/transitions": {
+            "get": {
+                "description": "Retrieve all transitions FROM a specific phase",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transitions"
+                ],
+                "summary": "Get phase transitions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Phase ID",
+                        "name": "phaseId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/repository.PhaseTransition"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/prompts": {
             "post": {
                 "description": "Create a new prompt for a phase",
@@ -598,6 +630,102 @@
                 }
             }
         },
+        "/api/transitions": {
+            "post": {
+                "description": "Create a new transition between phases",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transitions"
+                ],
+                "summary": "Create phase transition",
+                "parameters": [
+                    {
+                        "description": "Transition data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.TransitionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/repository.PhaseTransition"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/transitions/{id}": {
+            "put": {
+                "description": "Update an existing transition's condition or priority",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transitions"
+                ],
+                "summary": "Update phase transition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Transition ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated transition data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.TransitionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/repository.PhaseTransition"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Soft-delete a transition by setting is_active to false",
+                "tags": [
+                    "transitions"
+                ],
+                "summary": "Delete phase transition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Transition ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/api/workflow/prompts": {
             "get": {
                 "description": "Get all currently active prompts for all phases",
@@ -753,6 +881,23 @@
                     "items": {
                         "$ref": "#/definitions/api.VisitNode"
                     }
+                }
+            }
+        },
+        "api.TransitionRequest": {
+            "type": "object",
+            "properties": {
+                "condition": {
+                    "type": "string"
+                },
+                "from_phase_id": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "to_phase_id": {
+                    "type": "string"
                 }
             }
         },

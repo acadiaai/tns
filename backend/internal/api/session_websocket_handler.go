@@ -335,13 +335,24 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 			if err := repository.DB.Where("phase_id = ?", phase.ID).Find(&phaseFields).Error; err != nil {
 				logger.AppLogger.WithError(err).Error("Failed to get phase data for phase")
 			}
+
+			// Get transitions FROM this phase
+			var transitions []repository.PhaseTransition
+			if err := repository.DB.Where("from_phase_id = ? AND is_active = ?", phase.ID, true).
+				Preload("ToPhase").
+				Order("priority ASC").
+				Find(&transitions).Error; err != nil {
+				logger.AppLogger.WithError(err).Error("Failed to get transitions for phase")
+			}
+
 			sharedPhases[i] = shared.Phase{
-				ID:          phase.ID,
-				DisplayName: phase.DisplayName,
-				Description: phase.Description,
-				Color:       phase.Color,
-				Icon:        phase.Icon,
-				PhaseData:   convertPhaseData(phaseFields),
+				ID:              phase.ID,
+				DisplayName:     phase.DisplayName,
+				Description:     phase.Description,
+				Color:           phase.Color,
+				Icon:            phase.Icon,
+				PhaseData:       convertPhaseData(phaseFields),
+				TransitionsFrom: convertTransitions(transitions),
 			}
 		}
 

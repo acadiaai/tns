@@ -369,6 +369,7 @@ export const WorkflowExplorer: React.FC<WorkflowExplorerProps> = ({
                             .flatMap(p => p.transitions_from || [])
                             .filter((t: any) => t.from_phase_id === visit.phase_id);
 
+
                           return outgoingTransitions.length > 0 ? (
                             <div>
                               <div className="flex items-center gap-2 mb-3">
