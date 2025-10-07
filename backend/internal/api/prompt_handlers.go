@@ -8,6 +8,7 @@ import (
 	"os"
 	"therapy-navigation-system/internal/logger"
 	"therapy-navigation-system/internal/repository"
+	"therapy-navigation-system/internal/services"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -275,4 +276,20 @@ func UpdateSystemPromptHandler(w http.ResponseWriter, r *http.Request) {
 	logger.AppLogger.WithField("version", newVersion).Info("System prompt updated")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(newPrompt)
+}
+
+// GetSessionExtractorPrompts returns all extractor prompt attempts for a specific session
+func GetSessionExtractorPrompts(w http.ResponseWriter, r *http.Request) {
+	sessionID := chi.URLParam(r, "id")
+
+	// Get extraction history from in-memory store
+	history := services.GetExtractionHistory(sessionID)
+
+	// Return JSON response
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(history); err != nil {
+		logger.AppLogger.WithError(err).Error("Failed to encode extraction history")
+		http.Error(w, "Failed to encode extraction history", http.StatusInternalServerError)
+		return
+	}
 }

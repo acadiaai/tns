@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"therapy-navigation-system/internal/logger"
 	"therapy-navigation-system/internal/repository"
@@ -14,6 +16,33 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/genai"
 )
+
+// ExtractionAttempt represents a single extraction attempt
+type ExtractionAttempt struct {
+	SessionID      string                 `json:"session_id"`
+	Timestamp      time.Time              `json:"timestamp"`
+	Phase          string                 `json:"phase"`
+	UserMessage    string                 `json:"user_message"`
+	CoachContext   string                 `json:"coach_context"`
+	RequiredFields []string               `json:"required_fields"`
+	Prompt         string                 `json:"prompt"`
+	RawResponse    string                 `json:"raw_response"`
+	ExtractedData  map[string]interface{} `json:"extracted_data"`
+	NormalizedData map[string]interface{} `json:"normalized_data"`
+}
+
+// ExtractionHistory stores extraction attempts in memory
+var (
+	extractionHistory = make(map[string][]ExtractionAttempt) // sessionID -> attempts
+	historyMutex      sync.RWMutex
+)
+
+// GetExtractionHistory returns all extraction attempts for a session
+func GetExtractionHistory(sessionID string) []ExtractionAttempt {
+	historyMutex.RLock()
+	defer historyMutex.RUnlock()
+	return extractionHistory[sessionID]
+}
 
 // DataExtractor extracts structured data from conversation turns
 type DataExtractor struct {
@@ -107,7 +136,7 @@ func (e *DataExtractor) ExtractDataFromTurn(
 	}).Info("[EXTRACTOR] Starting data extraction for missing fields only")
 
 	// Use LLM extraction for missing fields only (prevents overwrites)
-	extracted, err := e.llmExtraction(ctx, missingFields, userMessage, coachResponse)
+	extracted, prompt, rawResponse, err := e.llmExtraction(ctx, missingFields, userMessage, coachResponse)
 	if err != nil {
 		logger.AppLogger.WithError(err).Error("[EXTRACTOR] LLM extraction failed")
 		return map[string]interface{}{}, nil // Don't fail the conversation
@@ -122,6 +151,29 @@ func (e *DataExtractor) ExtractDataFromTurn(
 		"normalized": normalized,
 		"method":     "llm",
 	}).Info("[EXTRACTOR] LLM extraction succeeded")
+
+	// Record this extraction attempt
+	fieldNames := make([]string, len(missingFields))
+	for i, f := range missingFields {
+		fieldNames[i] = f.Name
+	}
+
+	attempt := ExtractionAttempt{
+		SessionID:      sessionID,
+		Timestamp:      time.Now(),
+		Phase:          currentPhase,
+		UserMessage:    userMessage,
+		CoachContext:   coachResponse,
+		RequiredFields: fieldNames,
+		Prompt:         prompt,
+		RawResponse:    rawResponse,
+		ExtractedData:  extracted,
+		NormalizedData: normalized,
+	}
+
+	historyMutex.Lock()
+	extractionHistory[sessionID] = append(extractionHistory[sessionID], attempt)
+	historyMutex.Unlock()
 
 	return normalized, nil
 }
@@ -175,12 +227,13 @@ func (e *DataExtractor) ruleBasedExtraction(
 }
 
 // llmExtraction uses LLM to extract complex data
+// Returns: extracted data, prompt, raw response, error
 func (e *DataExtractor) llmExtraction(
 	ctx context.Context,
 	requiredFields []repository.PhaseData,
 	userMessage string,
 	coachResponse string,
-) (map[string]interface{}, error) {
+) (map[string]interface{}, string, string, error) {
 	prompt := e.buildExtractionPrompt(requiredFields, userMessage, coachResponse)
 
 	logger.AppLogger.WithField("prompt", prompt).Info("[EXTRACTOR] LLM extraction prompt")
@@ -200,14 +253,15 @@ func (e *DataExtractor) llmExtraction(
 	)
 
 	if err != nil {
-		return nil, err
+		return nil, prompt, "", err
 	}
 
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return nil, fmt.Errorf("no response from LLM")
+		return nil, prompt, "", fmt.Errorf("no response from LLM")
 	}
 
 	responseText := resp.Candidates[0].Content.Parts[0].Text
+	rawResponse := responseText // Keep original for logging
 
 	logger.AppLogger.WithField("response", responseText).Info("[EXTRACTOR] LLM extraction response")
 
@@ -225,10 +279,10 @@ func (e *DataExtractor) llmExtraction(
 			"response": responseText,
 			"error":    err.Error(),
 		}).Error("[EXTRACTOR] Failed to parse JSON response")
-		return nil, fmt.Errorf("failed to parse extraction response: %w", err)
+		return nil, prompt, rawResponse, fmt.Errorf("failed to parse extraction response: %w", err)
 	}
 
-	return extracted, nil
+	return extracted, prompt, rawResponse, nil
 }
 
 // buildExtractionPrompt creates the prompt for LLM extraction
@@ -274,7 +328,7 @@ func (e *DataExtractor) buildExtractionPrompt(
 
 	return fmt.Sprintf(`You are a data extraction assistant for a therapy session.
 
-Your task: Extract ONLY explicitly stated data from the patient's message. Do NOT infer or assume.
+Your task: Extract data that is explicitly stated OR clearly provided in the patient's answer to the coach's question.
 
 Required fields:
 %s
@@ -284,17 +338,19 @@ Coach: %s
 Patient: %s
 
 Rules:
-1. Only extract data EXPLICITLY stated by the patient
-2. "ready" is NOT consent - only "I consent" or "yes, I consent" counts
-3. For numbers, only extract if clearly stated
-4. If no data provided, return {}
+1. Extract data that is explicitly stated OR clearly provided as an answer to the coach's question
+2. When the coach explains how to interpret an answer (e.g., "if you say X, that means Y"), use that mapping
+3. "ready" is NOT consent - only "I consent" or "yes, I consent" counts
+4. For numbers, only extract if clearly stated
+5. If no data provided, return {}
 
 Output valid JSON with field names as keys, or {} if nothing provided.
 
 Examples:
 Input: "I'm ready" → Output: {}
 Input: "Yes, I consent" → Output: {"consent_given": true}
-Input: "anxiety about presenting, maybe 7 or 8" → Output: {"selected_issue": "anxiety about presenting", "issue_intensity": 8}
+Input: "7 or 8" → Output: {"field_name": 8}
+Input: Coach explains "if X then field=value1, if Y then field=value2", Patient says "X" → Output: {"field": "value1"}
 
 Output:`, strings.Join(fieldDescriptions, "\n"), coachResponse, userMessage)
 }

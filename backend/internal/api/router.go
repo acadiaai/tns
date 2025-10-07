@@ -26,6 +26,11 @@ func sanitizedLogger(next http.Handler) http.Handler {
 				return
 			}
 
+			// Skip logging polling endpoints to reduce noise
+			if strings.Contains(r.RequestURI, "/path") || strings.Contains(r.RequestURI, "/health") {
+				return
+			}
+
 			// Redact token from query string
 			sanitizedURI := r.RequestURI
 			tokenRegex := regexp.MustCompile(`(token=)[^&\s]+`)
@@ -107,6 +112,7 @@ func NewRouter() *chi.Mux {
 		// Session prompts endpoint
 		r.Get("/sessions/{id}/prompts", GetSessionPrompts)
 		r.Get("/sessions/{id}/prompts/raw", GetSessionPromptsRawText)
+		r.Get("/sessions/{id}/prompts/extractor", GetSessionExtractorPrompts)
 
 		// MCP (Model Context Protocol) endpoint
 		r.Post("/mcp", MCPHTTPHandler)
@@ -123,6 +129,12 @@ func NewRouter() *chi.Mux {
 		r.Put("/phases/{id}", UpdatePhaseHandler)
 		r.Get("/phases/{id}/requirements", GetPhaseRequirementsHandler)
 		r.Get("/phases/{id}/tools", GetPhaseToolsHandler)
+		r.Get("/phases/{phaseId}/transitions", GetTransitionsHandler)
+
+		// Transition CRUD operations
+		r.Post("/transitions", CreateTransitionHandler)
+		r.Put("/transitions/{id}", UpdateTransitionHandler)
+		r.Delete("/transitions/{id}", DeleteTransitionHandler)
 
 		// Workflow Studio endpoints
 		r.Get("/phase-data", GetAllPhaseDataHandler)
