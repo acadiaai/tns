@@ -86,6 +86,7 @@ func generateTypeScriptInterfaces() string {
 		shared.WorkflowStatusResponse{},
 		shared.TimerStatus{},
 		shared.TimerEvent{},
+		shared.PhaseTransition{},
 		shared.Phase{},
 		shared.PhaseDataField{},
 		shared.TransitionOption{},

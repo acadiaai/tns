@@ -271,7 +271,7 @@ Reference the previous conversation naturally to maintain continuity.`
 	if finalAwareness != "" {
 		sb.WriteString("\n\nAWARENESS\n")
 		sb.WriteString(finalAwareness)
-		sb.WriteString("\n\nIMPORTANT: Ask specifically for each MISSING REQUIRED FIELD shown above. Do not ask generic questions.\n")
+		sb.WriteString("\n\nAs you converse naturally, ensure you ask about each missing required field above to collect the needed phase data.\n")
 	}
 	if finalWorking != "" {
 		sb.WriteString("\n\nWORKING MEMORY (recent dialogue)\n")
@@ -290,8 +290,6 @@ Reference the previous conversation naturally to maintain continuity.`
 		sb.WriteString("\n\nPHASE WORKFLOW\n")
 		sb.WriteString(phaseContext)
 	}
-
-	// Phase requirements are handled by extractor - AI doesn't need to see them
 
 	sb.WriteString(fmt.Sprintf("\n\nSESSION INFO\nCurrent Session ID: %s\n", sessionID))
 

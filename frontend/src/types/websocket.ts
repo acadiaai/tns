@@ -97,15 +97,13 @@ export interface TimerEvent {
   timestamp: string;
 }
 
-// PhaseTransition interface - defines transitions between phases
 export interface PhaseTransition {
   id: string;
   from_phase_id: string;
   to_phase_id: string;
   condition?: string;
   priority: number;
-  is_active?: boolean;
-  to_phase?: Phase;
+  to_phase?: Phase | null;
 }
 
 export interface Phase {

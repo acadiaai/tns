@@ -326,33 +326,24 @@ func (e *DataExtractor) buildExtractionPrompt(
 		fieldDescriptions = append(fieldDescriptions, description)
 	}
 
-	return fmt.Sprintf(`You are a data extraction assistant for a therapy session.
+	return fmt.Sprintf(`You are a data extraction assistant for a conversational workflow system.
 
-Your task: Extract data that is explicitly stated OR clearly provided in the patient's answer to the coach's question.
+For each required field, extract data ONLY if BOTH conditions are true:
+1. The coach's message is asking about that specific field's topic (based on field name and description)
+2. The client's response provides that information
+
+If the coach is asking about something else, return {}.
+
+Use extractor_hints when provided to translate natural language to structured format.
 
 Required fields:
 %s
 
 Conversation:
 Coach: %s
-Patient: %s
+Client: %s
 
-Rules:
-1. Extract data that is explicitly stated OR clearly provided as an answer to the coach's question
-2. When the coach explains how to interpret an answer (e.g., "if you say X, that means Y"), use that mapping
-3. "ready" is NOT consent - only "I consent" or "yes, I consent" counts
-4. For numbers, only extract if clearly stated
-5. If no data provided, return {}
-
-Output valid JSON with field names as keys, or {} if nothing provided.
-
-Examples:
-Input: "I'm ready" → Output: {}
-Input: "Yes, I consent" → Output: {"consent_given": true}
-Input: "7 or 8" → Output: {"field_name": 8}
-Input: Coach explains "if X then field=value1, if Y then field=value2", Patient says "X" → Output: {"field": "value1"}
-
-Output:`, strings.Join(fieldDescriptions, "\n"), coachResponse, userMessage)
+Output valid JSON with field names as keys, or {} if no field topics are being discussed.`, strings.Join(fieldDescriptions, "\n"), coachResponse, userMessage)
 }
 
 // normalizeExtractedData uses extractor_hints to convert natural language to proper types
