@@ -77,6 +77,32 @@ func convertPhaseData(repoData []repository.PhaseData) []shared.PhaseDataField {
 	return fields
 }
 
+func convertTransitions(repoTransitions []repository.PhaseTransition) []shared.PhaseTransition {
+	transitions := make([]shared.PhaseTransition, len(repoTransitions))
+	for i, t := range repoTransitions {
+		transition := shared.PhaseTransition{
+			ID:          t.ID,
+			FromPhaseID: t.FromPhaseID,
+			ToPhaseID:   t.ToPhaseID,
+			Condition:   t.Condition,
+			Priority:    t.Priority,
+		}
+
+		// Include basic ToPhase info if preloaded (for display in UI)
+		if t.ToPhase.ID != "" {
+			transition.ToPhase = &shared.Phase{
+				ID:          t.ToPhase.ID,
+				DisplayName: t.ToPhase.DisplayName,
+				Color:       t.ToPhase.Color,
+				Icon:        t.ToPhase.Icon,
+			}
+		}
+
+		transitions[i] = transition
+	}
+	return transitions
+}
+
 func convertMessages(repoMessages []repository.Message) []shared.Message {
 	messages := make([]shared.Message, len(repoMessages))
 	for i, m := range repoMessages {
@@ -878,14 +904,12 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 				logger.AppLogger.WithField("session_id", sessionID).Error("GeminiService is nil, cannot generate post-wait coach response")
 			}
 
-			// FINALLY: Clear wait_started_at so subsequent messages use normal phase prompts
-			// This prevents getting stuck in post_wait state for all future messages
-			phaseState.WaitStartedAt = nil
-			if err := repository.DB.Save(&phaseState).Error; err != nil {
-				logger.AppLogger.WithError(err).Error("Failed to clear wait_started_at after post-wait response")
-			} else {
-				logger.AppLogger.WithField("session_id", sessionID).Info("Cleared wait_started_at timestamp after post-wait response")
-			}
+			// DO NOT clear wait_started_at here! We need it to remain set so that:
+			// 1. The next user message ("yes") is treated as post_wait for extraction
+			// 2. The extractor can find and collect ready_to_move_on field
+			// 3. Auto-transition can happen successfully
+			// The wait_started_at will be cleared when we transition to the next phase
+			logger.AppLogger.WithField("session_id", sessionID).Info("Keeping wait_started_at set for post-wait data extraction")
 
 			// Auto-transition will happen via normal data collection flow
 			// The ready_to_move_on data requirement triggers phase transition
@@ -981,20 +1005,31 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 			}
 		}
 
-		// Convert all phases with their phase_data for clean structure
+		// Convert all phases with their phase_data and transitions for clean structure
 		sharedPhases := make([]shared.Phase, len(allPhases))
 		for i, phase := range allPhases {
 			var phaseFields []repository.PhaseData
 			if err := repository.DB.Where("phase_id = ?", phase.ID).Find(&phaseFields).Error; err != nil {
 				logger.AppLogger.WithError(err).Error("Failed to get phase data for phase")
 			}
+
+			// Get transitions FROM this phase
+			var transitions []repository.PhaseTransition
+			if err := repository.DB.Where("from_phase_id = ? AND is_active = ?", phase.ID, true).
+				Preload("ToPhase").
+				Order("priority ASC").
+				Find(&transitions).Error; err != nil {
+				logger.AppLogger.WithError(err).Error("Failed to get transitions for phase")
+			}
+
 			sharedPhases[i] = shared.Phase{
-				ID:          phase.ID,
-				DisplayName: phase.DisplayName,
-				Description: phase.Description,
-				Color:       phase.Color,
-				Icon:        phase.Icon,
-				PhaseData:   convertPhaseData(phaseFields),
+				ID:              phase.ID,
+				DisplayName:     phase.DisplayName,
+				Description:     phase.Description,
+				Color:           phase.Color,
+				Icon:            phase.Icon,
+				PhaseData:       convertPhaseData(phaseFields),
+				TransitionsFrom: convertTransitions(transitions),
 			}
 		}
 
@@ -1054,6 +1089,127 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 		"database_phase":  session.Phase,
 		"current_phase":   currentPhase,
 	}).Info("[PHASE_DEBUG] Using session database phase instead of workflow engine")
+
+	// Determine phase_state for timed_waiting phases
+	var phaseState string
+	var currentPhaseData repository.Phase
+	if err := repository.DB.Where("id = ?", currentPhase).First(&currentPhaseData).Error; err == nil {
+		if currentPhaseData.Type == "timed_waiting" {
+			var phaseStateRecord repository.SessionPhaseState
+			if err := repository.DB.Where("session_id = ? AND phase_id = ?", sessionID, currentPhase).First(&phaseStateRecord).Error; err == nil {
+				if phaseStateRecord.WaitStartedAt != nil {
+					phaseState = "post_wait"
+					logger.AppLogger.WithFields(map[string]interface{}{
+						"session_id":      sessionID,
+						"phase":           currentPhase,
+						"wait_started_at": phaseStateRecord.WaitStartedAt,
+					}).Info("[PHASE_STATE_DEBUG] Determined phase_state = post_wait")
+				} else {
+					phaseState = "pre_wait"
+					logger.AppLogger.WithFields(map[string]interface{}{
+						"session_id": sessionID,
+						"phase":      currentPhase,
+					}).Info("[PHASE_STATE_DEBUG] Determined phase_state = pre_wait (no wait_started_at)")
+				}
+			} else {
+				phaseState = "pre_wait"
+				logger.AppLogger.WithFields(map[string]interface{}{
+					"session_id": sessionID,
+					"phase":      currentPhase,
+				}).Info("[PHASE_STATE_DEBUG] Determined phase_state = pre_wait (no phase_state record)")
+			}
+		} else {
+			logger.AppLogger.WithFields(map[string]interface{}{
+				"session_id": sessionID,
+				"phase":      currentPhase,
+				"phase_type": currentPhaseData.Type,
+			}).Info("[PHASE_STATE_DEBUG] Not a timed_waiting phase, phase_state = empty")
+		}
+	}
+
+	// CRITICAL FIX: Extract data from user message BEFORE generating coach response
+	// This ensures the coach sees collected data in the AWARENESS section
+	logger.AppLogger.WithField("session_id", sessionID).Info("[EXTRACTOR] Extracting data from user message BEFORE coach response")
+
+	// Get the last coach message for extraction context
+	var lastCoachMsg repository.Message
+	var previousCoachResponse string
+	if err := repository.DB.Where("session_id = ? AND role = ?", sessionID, "coach").
+		Order("created_at DESC").
+		First(&lastCoachMsg).Error; err == nil {
+		previousCoachResponse = lastCoachMsg.Content
+		previewLen := len(previousCoachResponse)
+		if previewLen > 100 {
+			previewLen = 100
+		}
+		logger.AppLogger.WithFields(map[string]interface{}{
+			"session_id": sessionID,
+			"preview":    previousCoachResponse[:previewLen],
+		}).Info("[EXTRACTOR] Using previous coach message for extraction context")
+	} else {
+		logger.AppLogger.WithField("session_id", sessionID).Info("[EXTRACTOR] No previous coach message found (first turn)")
+	}
+
+	dataExtractor := services.NewDataExtractor(Services.GeminiService)
+	extracted, err := dataExtractor.ExtractDataFromTurn(
+		ctx,
+		sessionID,
+		wsMessage.Content,
+		previousCoachResponse, // Previous coach question provides context for extraction
+		currentPhase,
+		phaseState, // "pre_wait", "post_wait", or "" for non-timed phases
+	)
+
+	if err != nil {
+		logger.AppLogger.WithError(err).WithField("session_id", sessionID).Error("[EXTRACTOR] Pre-coach data extraction failed")
+		// Don't return - continue with coach response even if extraction fails
+	} else if len(extracted) > 0 {
+		// Save extracted data immediately so coach sees it
+		logger.AppLogger.WithFields(map[string]interface{}{
+			"session_id": sessionID,
+			"extracted": extracted,
+		}).Info("[EXTRACTOR] Data extracted before coach, calling collect_structured_data")
+
+		mcpClient := getWSMCPClient(authToken)
+		if mcpClient != nil {
+			argsMap := map[string]interface{}{
+				"session_id": sessionID,
+				"data":       extracted,
+			}
+			argsJSON, _ := json.Marshal(argsMap)
+			_, toolErr := mcpClient.ToolsCall(ctx, "collect_structured_data", argsJSON)
+			if toolErr != nil {
+				logger.AppLogger.WithError(toolErr).Error("[EXTRACTOR] Failed to call collect_structured_data before coach")
+			} else {
+				logger.AppLogger.WithField("session_id", sessionID).Info("[EXTRACTOR] ✅ Data saved BEFORE coach generation")
+			}
+		}
+	}
+
+	// CRITICAL FIX: Check auto-transition BEFORE coach generation
+	// This ensures coach generates response for the correct phase after transition
+	logger.AppLogger.WithField("session_id", sessionID).Info("[AUTO-TRANSITION] Checking if phase requirements met BEFORE coach generation")
+	mcpClient := getWSMCPClient(authToken)
+	if mcpClient != nil {
+		transitionArgs := map[string]interface{}{
+			"session_id": sessionID,
+		}
+		transitionJSON, _ := json.Marshal(transitionArgs)
+		_, transitionErr := mcpClient.ToolsCall(ctx, "check_auto_transition", transitionJSON)
+		if transitionErr != nil {
+			logger.AppLogger.WithError(transitionErr).Error("[AUTO-TRANSITION] Failed to call check_auto_transition tool")
+		} else {
+			logger.AppLogger.WithField("session_id", sessionID).Info("[AUTO-TRANSITION] Successfully called check_auto_transition tool")
+
+			// Re-read session from database to get potentially-updated phase
+			repository.DB.First(&session, "id = ?", sessionID)
+			currentPhase = session.Phase
+			logger.AppLogger.WithFields(map[string]interface{}{
+				"session_id":    sessionID,
+				"updated_phase": currentPhase,
+			}).Info("[AUTO-TRANSITION] Phase updated, coach will generate for new phase")
+		}
+	}
 
 	// Use CoachService for therapeutic responses
 	logger.AppLogger.WithFields(map[string]interface{}{
@@ -1121,48 +1277,6 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 		})
 
 		logger.AppLogger.WithField("session_id", sessionID).Info("[MESSAGE_DEBUG] Conversation message created and broadcast")
-
-		// Extract data from this conversation turn asynchronously
-		go func(userMsg, coachMsg, phase string) {
-			dataExtractor := services.NewDataExtractor(Services.GeminiService)
-			extracted, err := dataExtractor.ExtractDataFromTurn(
-				ctx,
-				sessionID,
-				userMsg,
-				coachMsg,
-				phase,
-			)
-
-			if err != nil {
-				logger.AppLogger.WithError(err).WithField("session_id", sessionID).Error("[EXTRACTOR] Data extraction failed")
-				return
-			}
-
-			if len(extracted) > 0 {
-				logger.AppLogger.WithFields(map[string]interface{}{
-					"session_id": sessionID,
-					"extracted": extracted,
-				}).Info("[EXTRACTOR] Data extracted, calling collect_structured_data tool")
-
-				// Call MCP tool to collect the data
-				mcpClient := getWSMCPClient(authToken)
-				if mcpClient != nil {
-					argsMap := map[string]interface{}{
-						"session_id": sessionID,
-						"data":       extracted,
-					}
-					argsJSON, _ := json.Marshal(argsMap)
-					_, toolErr := mcpClient.ToolsCall(ctx, "collect_structured_data", argsJSON)
-					if toolErr != nil {
-						logger.AppLogger.WithError(toolErr).Error("[EXTRACTOR] Failed to call collect_structured_data tool")
-					} else {
-						logger.AppLogger.WithField("session_id", sessionID).Info("[EXTRACTOR] Successfully called collect_structured_data tool")
-					}
-				}
-			} else {
-				logger.AppLogger.WithField("session_id", sessionID).Debug("[EXTRACTOR] No data extracted from turn")
-			}
-		}(wsMessage.Content, responseText, currentPhase)
 	} else {
 		logger.AppLogger.WithField("session_id", sessionID).Info("[MESSAGE_DEBUG] No response text, skipping conversation message")
 
@@ -1205,7 +1319,7 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 	}
 
 	// Create initial "executing" tool call messages and execute async
-	mcpClient := getWSMCPClient(authToken)
+	mcpClient = getWSMCPClient(authToken)
 	hasTransitionTool := false
 
 	if len(coachResponse.ToolCalls) > 0 {

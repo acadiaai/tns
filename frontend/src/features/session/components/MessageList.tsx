@@ -43,15 +43,37 @@ export const MessageList: React.FC<MessageListProps> = ({
 
   return (
     <div className={`overflow-y-auto p-4 space-y-4 ${className}`}>
-      {visibleMessages.map((message) => (
-        <MessageBubble
-          key={message.id}
-          message={message}
-        />
-      ))}
+      {visibleMessages.map((message) => {
+        // Render completion bubble for wait_completed messages
+        if (message.message_type === 'wait_completed' && timedWaitingPhase) {
+          const metadata = typeof message.metadata === 'string'
+            ? JSON.parse(message.metadata)
+            : message.metadata;
 
-      {/* Show timed waiting prompt bubble - always visible in timed_waiting phase */}
-      {timedWaitingPhase && onBeginTimedWaiting && (
+          return (
+            <TimedWaitingPromptBubble
+              key={message.id}
+              phaseName={timedWaitingPhase.display_name || 'Timed Phase'}
+              durationSeconds={timedWaitingPhase.wait_duration_seconds || 60}
+              visualizationType={timedWaitingPhase.visualization_type || 'flowing_lines'}
+              onBegin={onBeginTimedWaiting || (() => {})}
+              status='completed'
+              elapsedSeconds={metadata?.elapsed_seconds || timedWaitingElapsed}
+            />
+          );
+        }
+
+        // Regular message bubble
+        return (
+          <MessageBubble
+            key={message.id}
+            message={message}
+          />
+        );
+      })}
+
+      {/* Show timed waiting START bubble only when phase is active and not started yet */}
+      {timedWaitingPhase && onBeginTimedWaiting && timedWaitingStatus === 'not_started' && (
         <TimedWaitingPromptBubble
           phaseName={timedWaitingPhase.display_name || 'Timed Phase'}
           durationSeconds={timedWaitingPhase.wait_duration_seconds || 60}

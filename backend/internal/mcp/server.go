@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"therapy-navigation-system/internal/repository"
 	"therapy-navigation-system/internal/state"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -45,16 +45,15 @@ func (s *MCPServer) CallTool(ctx context.Context, toolName string, arguments jso
 	var result interface{}
 	var err error
 
-	// Single universal tool
+	// Essential tools
 	switch toolName {
 	case "collect_structured_data":
 		result, err = s.handleCollectStructuredData(ctx, arguments)
-	// REMOVED: therapy_session_transition is now handled automatically via collect_structured_data
-	// case "therapy_session_transition":
-	//	result, err = s.handleTransition(ctx, arguments)
+	case "check_auto_transition":
+		result, err = s.handleCheckAutoTransition(ctx, arguments)
 	default:
 		// HARD ERROR - no silent failures
-		err = fmt.Errorf("CRITICAL: Unknown tool '%s'. Only available tool: collect_structured_data", toolName)
+		err = fmt.Errorf("CRITICAL: Unknown tool '%s'. Available tools: collect_structured_data, check_auto_transition", toolName)
 		s.logger.WithField("tool", toolName).Error("Unknown tool called - failing hard")
 		return nil, err
 	}
@@ -94,7 +93,7 @@ type Tool struct {
 	InputSchema map[string]interface{} `json:"inputSchema"`
 }
 
-// GetTools returns the single universal MCP tool
+// GetTools returns available MCP tools
 func (s *MCPServer) GetTools() []Tool {
 	return []Tool{
 		{
@@ -113,6 +112,20 @@ func (s *MCPServer) GetTools() []Tool {
 					},
 				},
 				"required": []string{"session_id", "data"},
+			},
+		},
+		{
+			Name:        "check_auto_transition",
+			Description: "Check if the current phase requirements are met and automatically transition to the next phase if ready. This tool should be called after every conversation turn to ensure timely phase progression.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "The session ID to check for auto-transition",
+					},
+				},
+				"required": []string{"session_id"},
 			},
 		},
 	}
@@ -240,9 +253,66 @@ func (s *MCPServer) handleTransition(ctx context.Context, arguments json.RawMess
 	// Store old phase for logging
 	oldPhase := session.Phase
 
-	// Update session phase
+	// === VISIT-BASED TRANSITION LOGIC ===
+	// 1. Close the current visit (if exists)
+	if session.CurrentVisitID != nil {
+		now := time.Now()
+		if err := repository.DB.Model(&repository.SessionPhaseVisit{}).
+			Where("id = ?", *session.CurrentVisitID).
+			Updates(map[string]interface{}{
+				"exited_at":  &now,
+				"is_current": false,
+			}).Error; err != nil {
+			s.logger.WithError(err).Warn("Failed to close current visit")
+		}
+	}
+
+	// 2. Calculate visit number for target phase
+	var visitCount int64
+	repository.DB.Model(&repository.SessionPhaseVisit{}).
+		Where("session_id = ? AND phase_id = ?", session.ID, targetPhase).
+		Count(&visitCount)
+	visitNumber := int(visitCount) + 1
+
+	// 3. Find which transition was taken (for exit_transition_id)
+	var transitionID *string
+	var transition repository.PhaseTransition
+	if err := repository.DB.Where("from_phase_id = ? AND to_phase_id = ? AND is_active = ?",
+		oldPhase, targetPhase, true).First(&transition).Error; err == nil {
+		transitionID = &transition.ID
+	}
+
+	// 4. Create new visit node
+	newVisitID := uuid.New().String()
+	newVisit := repository.SessionPhaseVisit{
+		ID:                 newVisitID,
+		SessionID:          session.ID,
+		PhaseID:            targetPhase,
+		VisitNumber:        visitNumber,
+		EnteredAt:          time.Now(),
+		IsCurrent:          true,
+		EnteredFromVisitID: session.CurrentVisitID, // Link to previous visit
+		ExitTransitionID:   nil,                    // Will be set when exiting
+		CollectedData:      "{}",                   // Fresh data for this visit
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}
+
+	if err := repository.DB.Create(&newVisit).Error; err != nil {
+		return nil, fmt.Errorf("failed to create visit node: %w", err)
+	}
+
+	// 5. Update the exit_transition_id on the previous visit
+	if session.CurrentVisitID != nil && transitionID != nil {
+		repository.DB.Model(&repository.SessionPhaseVisit{}).
+			Where("id = ?", *session.CurrentVisitID).
+			Update("exit_transition_id", transitionID)
+	}
+
+	// 6. Update session to point to new visit
 	updates := map[string]interface{}{
 		"phase":            targetPhase,
+		"current_visit_id": newVisitID,
 		"phase_start_time": time.Now(),
 		"updated_at":       time.Now(),
 	}
@@ -311,8 +381,140 @@ func (s *MCPServer) handleTransition(ctx context.Context, arguments json.RawMess
 	}, nil
 }
 
+// handleCheckAutoTransition checks if phase requirements are met and automatically transitions if ready
+func (s *MCPServer) handleCheckAutoTransition(ctx context.Context, arguments json.RawMessage) (interface{}, error) {
+	var args struct {
+		SessionID string `json:"session_id"`
+	}
 
-// handleCollectStructuredData stores phase-required data and handles auto-transitions
+	if err := json.Unmarshal(arguments, &args); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+
+	// Get current session
+	var session repository.Session
+	if err := repository.DB.Where("id = ?", args.SessionID).First(&session).Error; err != nil {
+		return nil, fmt.Errorf("session not found: %w", err)
+	}
+
+	// Use state machine to check if we can transition
+	stateMachine := state.New(args.SessionID)
+	readyToTransition := stateMachine.ValidatePhaseRequirements(session.Phase) == nil
+
+	// Get detailed validation results for logging
+	dataRequirementsErr := stateMachine.ValidateDataRequirements(session.Phase)
+	minimumTurnsErr := stateMachine.ValidateMinimumTurns(session.Phase)
+
+	// Log comprehensive transition readiness check
+	s.logger.WithFields(logrus.Fields{
+		"session_id":               args.SessionID,
+		"current_phase":            session.Phase,
+		"ready_to_transition":      readyToTransition,
+		"data_requirements_met":    dataRequirementsErr == nil,
+		"minimum_turns_met":        minimumTurnsErr == nil,
+		"data_requirements_error":  func() string { if dataRequirementsErr != nil { return dataRequirementsErr.Error() }; return "" }(),
+		"timing_constraints_error": func() string { if minimumTurnsErr != nil { return minimumTurnsErr.Error() }; return "" }(),
+	}).Info("🔍 Auto-transition check")
+
+	// If ready, automatically transition to next phase
+	if readyToTransition {
+		// Use decision tree logic to determine next phase
+		targetPhase, err := stateMachine.DetermineNextPhase(session.Phase)
+		if err != nil {
+			s.logger.WithError(err).Error("❌ Decision tree failed to determine next phase")
+			return map[string]interface{}{
+				"auto_transition_attempted": true,
+				"auto_transition_success":   false,
+				"auto_transition_error":     fmt.Sprintf("decision tree error: %s", err.Error()),
+				"data_requirements_met":     dataRequirementsErr == nil,
+				"minimum_turns_met":         minimumTurnsErr == nil,
+				"ready_to_transition":       readyToTransition,
+			}, nil
+		}
+
+		s.logger.WithFields(logrus.Fields{
+			"session_id":    args.SessionID,
+			"current_phase": session.Phase,
+			"target_phase":  targetPhase,
+		}).Info("🚀 AUTO-TRANSITION: All requirements met, decision tree determined next phase")
+
+		// Call internal transition logic
+		transitionArgs := struct {
+			SessionID   string `json:"session_id"`
+			TargetPhase string `json:"target_phase"`
+			Reason      string `json:"reason"`
+		}{
+			SessionID:   args.SessionID,
+			TargetPhase: targetPhase,
+			Reason:      "Auto-transition: All phase requirements satisfied",
+		}
+		transitionArgsBytes, _ := json.Marshal(transitionArgs)
+
+		// Execute transition
+		result, err := s.handleTransition(ctx, transitionArgsBytes)
+		if err != nil {
+			s.logger.WithError(err).Error("❌ AUTO-TRANSITION FAILED")
+			return map[string]interface{}{
+				"auto_transition_attempted": true,
+				"auto_transition_success":   false,
+				"auto_transition_error":     err.Error(),
+			}, nil
+		}
+
+		s.logger.WithField("session_id", args.SessionID).Info("✅ AUTO-TRANSITION SUCCESSFUL")
+
+		// Extract the resolved phase from transition result
+		resultMap, _ := result.(map[string]interface{})
+		actualNewPhase, _ := resultMap["new_phase"].(string)
+
+		s.logger.WithFields(logrus.Fields{
+			"session_id":      args.SessionID,
+			"resolved_phase":  actualNewPhase,
+			"original_target": targetPhase,
+		}).Info("🔄 Broadcasting resolved phase for coach message generation")
+
+		// Trigger coach message generation for the new phase
+		s.broadcast(map[string]interface{}{
+			"type":                  "phase_transition_completed",
+			"session_id":            args.SessionID,
+			"new_phase":             actualNewPhase,
+			"trigger_coach_message": true,
+			"timestamp":             time.Now(),
+		})
+
+		return map[string]interface{}{
+			"auto_transition_attempted": true,
+			"auto_transition_success":   true,
+			"transition_result":         result,
+		}, nil
+	}
+
+	// Data collected but not ready to transition
+	// Check if we should trigger coach continuation message
+	dataRequirementsComplete := dataRequirementsErr == nil
+	turnsBlocking := minimumTurnsErr != nil
+
+	if dataRequirementsComplete && turnsBlocking {
+		// All data collected, only waiting for minimum turns
+		s.logger.WithField("session_id", args.SessionID).Info("🔄 Data complete, turns blocking - triggering coach continuation")
+		s.broadcast(map[string]interface{}{
+			"type":                  "data_collected_continue_conversation",
+			"session_id":            args.SessionID,
+			"current_phase":         session.Phase,
+			"trigger_coach_message": true,
+			"timestamp":             time.Now(),
+		})
+	}
+
+	return map[string]interface{}{
+		"ready_to_transition":      readyToTransition,
+		"auto_transition_attempted": false,
+		"data_requirements_met":    dataRequirementsErr == nil,
+		"minimum_turns_met":        minimumTurnsErr == nil,
+	}, nil
+}
+
+// handleCollectStructuredData stores phase-required data
 func (s *MCPServer) handleCollectStructuredData(ctx context.Context, arguments json.RawMessage) (interface{}, error) {
 	var args struct {
 		SessionID string                 `json:"session_id"`
@@ -329,6 +531,23 @@ func (s *MCPServer) handleCollectStructuredData(ctx context.Context, arguments j
 		return nil, fmt.Errorf("session not found: %w", err)
 	}
 
+	// === VISIT-SCOPED DATA STORAGE ===
+	// Get current visit
+	if session.CurrentVisitID == nil {
+		return nil, fmt.Errorf("no current visit - cannot collect data")
+	}
+
+	var currentVisit repository.SessionPhaseVisit
+	if err := repository.DB.Where("id = ?", *session.CurrentVisitID).First(&currentVisit).Error; err != nil {
+		return nil, fmt.Errorf("current visit not found: %w", err)
+	}
+
+	// Parse existing collected data for this visit
+	var visitData map[string]interface{}
+	if err := json.Unmarshal([]byte(currentVisit.CollectedData), &visitData); err != nil {
+		visitData = make(map[string]interface{})
+	}
+
 	// Get required fields for current phase
 	var requiredFields []repository.PhaseData
 	repository.DB.Where("phase_id = ? AND required = ?", session.Phase, true).Find(&requiredFields)
@@ -339,7 +558,6 @@ func (s *MCPServer) handleCollectStructuredData(ctx context.Context, arguments j
 
 	for key, value := range args.Data {
 		// Skip nil values - don't store them at all
-		// This prevents storing literal "null" strings that pass validation
 		if value == nil {
 			continue
 		}
@@ -358,49 +576,21 @@ func (s *MCPServer) handleCollectStructuredData(ctx context.Context, arguments j
 			extraDataStored = append(extraDataStored, key)
 		}
 
-		// Convert value to JSON string for storage
-		fieldValueBytes, _ := json.Marshal(value)
-		fieldValueStr := string(fieldValueBytes)
-
-		// Detect type
-		fieldType := "string"
-		switch value.(type) {
-		case float64:
-			fieldType = "number"
-		case bool:
-			fieldType = "boolean"
-		case map[string]interface{}, []interface{}:
-			fieldType = "object"
-		}
-
-		// Store in SessionFieldValue
-		fieldValueRecord := repository.SessionFieldValue{
-			SessionID:  args.SessionID,
-			PhaseID:    session.Phase,
-			FieldName:  key, // Use original field name
-			FieldValue: fieldValueStr,
-			FieldType:  fieldType,
-		}
-
-		// Upsert the record
-		repository.DB.Where("session_id = ? AND field_name = ?", args.SessionID, key).
-			Assign(repository.SessionFieldValue{
-				FieldValue: fieldValueStr,
-				FieldType:  fieldType,
-				PhaseID:    session.Phase,
-				UpdatedAt:  time.Now(),
-			}).
-			FirstOrCreate(&fieldValueRecord)
+		// Store in current visit's CollectedData JSON
+		visitData[key] = value
 	}
 
-	// Check if all requirements are now satisfied by checking ALL collected data
-	var allCollectedForSession []repository.SessionFieldValue
-	repository.DB.Where("session_id = ?", args.SessionID).Find(&allCollectedForSession)
+	// Save updated visit data
+	updatedDataJSON, _ := json.Marshal(visitData)
+	if err := repository.DB.Model(&currentVisit).Update("collected_data", string(updatedDataJSON)).Error; err != nil {
+		return nil, fmt.Errorf("failed to update visit data: %w", err)
+	}
 
-	// Build a map of all collected field names
+	// Check if all requirements are now satisfied using current visit's data
+	// Build a map of all collected field names in this visit
 	collectedFieldNames := make(map[string]bool)
-	for _, field := range allCollectedForSession {
-		collectedFieldNames[field.FieldName] = true
+	for key := range visitData {
+		collectedFieldNames[key] = true
 	}
 
 	// Check which required fields are still missing
@@ -457,38 +647,20 @@ func (s *MCPServer) handleCollectStructuredData(ctx context.Context, arguments j
 		"requirements_satisfied": len(requirementsSatisfied),
 		"extra_data": len(extraDataStored),
 		"missing_requirements": missingRequirements,
-		"all_collected_count": len(allCollectedForSession),
+		"visit_collected_count": len(visitData),
 		"ready_to_transition": readyToTransition,
 	}).Info("✅ Structured data collected and requirements checked")
 
 	// Broadcast workflow update so UI refreshes with new data
-	// Get all collected data for this session
-	var allCollectedData []repository.SessionFieldValue
-	repository.DB.Where("session_id = ?", args.SessionID).Find(&allCollectedData)
-
-	// Get PhaseData records to map names to IDs
-	var phaseDataRecords []repository.PhaseData
-	repository.DB.Where("phase_id = ?", session.Phase).Find(&phaseDataRecords)
-
-	// Create name->ID mapping
-	nameToID := make(map[string]string)
-	for _, pd := range phaseDataRecords {
-		nameToID[pd.Name] = pd.ID
-	}
-
-	// Build phase_data_values map using field names as keys (frontend expects names, not IDs)
-	phaseDataValues := make(map[string]interface{})
-	for _, field := range allCollectedData {
-		// Always use field name as key to match frontend expectations
-		phaseDataValues[field.FieldName] = field.FieldValue
-	}
+	// Use visitData directly (already a map[string]interface{})
+	phaseDataValues := visitData
 
 	// DEBUG: Log exactly what we're broadcasting
 	s.logger.WithFields(logrus.Fields{
 		"session_id": args.SessionID,
 		"phase_data_values_count": len(phaseDataValues),
 		"phase_data_values": phaseDataValues,
-		"all_collected_count": len(allCollectedData),
+		"visit_collected_count": len(visitData),
 	}).Info("🔍 DEBUG: About to broadcast workflow_update with phase data")
 
 	// Broadcast workflow status update
@@ -501,143 +673,16 @@ func (s *MCPServer) handleCollectStructuredData(ctx context.Context, arguments j
 		"timestamp": time.Now(),
 	})
 
-	// AUTO-TRANSITION: If ready, automatically transition to next phase
-	transitionResult := map[string]interface{}{}
-	s.logger.WithFields(logrus.Fields{
-		"session_id": args.SessionID,
-		"ready_to_transition": readyToTransition,
-		"current_phase": session.Phase,
-	}).Info("🔍 DEBUG: About to check auto-transition condition")
-
-	if readyToTransition {
-		// Check if we're in status_check phase and have a next_action field
-		targetPhase := "next" // default
-
-		if session.Phase == "status_check" {
-			// Look for next_action in collected data to determine branching
-			for _, field := range allCollectedData {
-				if field.FieldName == "next_action" {
-					// The value should be a phase ID directly from the enum
-					// Remove quotes if present (JSON string)
-					targetPhase = strings.Trim(field.FieldValue, "\"")
-					s.logger.WithFields(logrus.Fields{
-						"raw_value": field.FieldValue,
-						"cleaned_value": targetPhase,
-					}).Info("📍 Status check branching based on next_action")
-					break
-				}
-			}
-		}
-
-		s.logger.WithFields(logrus.Fields{
-			"session_id": args.SessionID,
-			"current_phase": session.Phase,
-			"target_phase": targetPhase,
-		}).Info("🚀 AUTO-TRANSITION: All requirements met, transitioning")
-
-		// Call internal transition logic
-		transitionArgs := struct {
-			SessionID   string `json:"session_id"`
-			TargetPhase string `json:"target_phase"`
-			Reason      string `json:"reason"`
-		}{
-			SessionID:   args.SessionID,
-			TargetPhase: targetPhase,
-			Reason:      "Auto-transition: All phase requirements satisfied",
-		}
-		transitionArgsBytes, _ := json.Marshal(transitionArgs)
-
-		// Execute transition
-		result, err := s.handleTransition(ctx, transitionArgsBytes)
-		if err != nil {
-			s.logger.WithError(err).Error("❌ AUTO-TRANSITION FAILED")
-			transitionResult = map[string]interface{}{
-				"auto_transition_attempted": true,
-				"auto_transition_success":   false,
-				"auto_transition_error":     err.Error(),
-			}
-		} else {
-			s.logger.WithField("session_id", args.SessionID).Info("✅ AUTO-TRANSITION SUCCESSFUL")
-
-			// Extract the resolved phase from transition result
-			resultMap, _ := result.(map[string]interface{})
-			actualNewPhase, _ := resultMap["new_phase"].(string)
-
-			transitionResult = map[string]interface{}{
-				"auto_transition_attempted": true,
-				"auto_transition_success":   true,
-				"transition_result":         result,
-			}
-
-			s.logger.WithFields(logrus.Fields{
-				"session_id":      args.SessionID,
-				"resolved_phase":  actualNewPhase,
-				"original_target": targetPhase,
-			}).Info("🔄 Broadcasting resolved phase for coach message generation")
-
-			// Trigger coach message generation for the new phase
-			s.broadcast(map[string]interface{}{
-				"type": "phase_transition_completed",
-				"session_id": args.SessionID,
-				"new_phase": actualNewPhase,
-				"trigger_coach_message": true,
-				"timestamp": time.Now(),
-			})
-		}
-	} else {
-		// Data collected but not ready to transition
-		// Check if we should trigger coach continuation message
-		dataRequirementsComplete := dataRequirementsErr == nil
-		turnsBlocking := minimumTurnsErr != nil
-
-		if dataRequirementsComplete && turnsBlocking {
-			// All data collected, only waiting for minimum turns
-			s.logger.WithField("session_id", args.SessionID).Info("🔄 Data complete, turns blocking - triggering coach continuation")
-			s.broadcast(map[string]interface{}{
-				"type": "data_collected_continue_conversation",
-				"session_id": args.SessionID,
-				"current_phase": session.Phase,
-				"trigger_coach_message": true,
-				"timestamp": time.Now(),
-			})
-		}
-
-		s.logger.WithFields(logrus.Fields{
-			"session_id": args.SessionID,
-			"current_phase": session.Phase,
-			"missing_requirements": missingRequirements,
-			"ready_to_transition": readyToTransition,
-			"data_requirements_met": dataRequirementsErr == nil,
-			"minimum_turns_met": minimumTurnsErr == nil,
-			"blocking_reason": func() string {
-				if dataRequirementsErr != nil && minimumTurnsErr != nil {
-					return "Both data and minimum turns requirements not met"
-				} else if dataRequirementsErr != nil {
-					return "Data requirements not met"
-				} else if minimumTurnsErr != nil {
-					return "Minimum turns requirement not met"
-				}
-				return "Unknown reason"
-			}(),
-		}).Info("⏸️ AUTO-TRANSITION SKIPPED: Requirements not satisfied")
-	}
-
-	// Merge results
-	response := map[string]interface{}{
+	// Return data collection results
+	// NOTE: Auto-transition logic has been moved to separate check_auto_transition tool
+	return map[string]interface{}{
 		"success": true,
 		"requirements_satisfied": requirementsSatisfied,
 		"extra_data_stored": extraDataStored,
 		"missing_requirements": missingRequirements,
 		"ready_to_transition": readyToTransition,
 		"timestamp": time.Now(),
-	}
-
-	// Add transition results if any
-	for k, v := range transitionResult {
-		response[k] = v
-	}
-
-	return response, nil
+	}, nil
 }
 
 // parsePosition tries to parse a string as a position number

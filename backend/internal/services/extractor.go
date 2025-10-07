@@ -34,15 +34,37 @@ func (e *DataExtractor) ExtractDataFromTurn(
 	userMessage string,
 	coachResponse string,
 	currentPhase string,
+	phaseState string, // "pre_wait", "post_wait", or "" for non-timed phases
 ) (map[string]interface{}, error) {
-	// Get required fields for current phase
+	// Get required fields for current phase, filtered by phase_state
 	var requiredFields []repository.PhaseData
-	if err := repository.DB.Where("phase_id = ? AND required = ?", currentPhase, true).Find(&requiredFields).Error; err != nil {
+	query := repository.DB.Where("phase_id = ? AND required = ?", currentPhase, true)
+	if phaseState != "" {
+		// For timed_waiting phases, only get fields matching the phase_state
+		query = query.Where("phase_state = ? OR phase_state IS NULL OR phase_state = ''", phaseState)
+	} else {
+		// For non-timed phases, exclude fields with phase_state
+		query = query.Where("phase_state IS NULL OR phase_state = ''")
+	}
+	if err := query.Find(&requiredFields).Error; err != nil {
 		return nil, fmt.Errorf("failed to get required fields: %w", err)
 	}
 
+	logger.AppLogger.WithFields(logrus.Fields{
+		"session_id":       sessionID,
+		"phase":            currentPhase,
+		"phase_state":      phaseState,
+		"required_count":   len(requiredFields),
+		"required_fields":  requiredFields,
+	}).Info("[EXTRACTOR] DEBUG: Query returned required fields")
+
 	if len(requiredFields) == 0 {
 		// No requirements for this phase
+		logger.AppLogger.WithFields(logrus.Fields{
+			"session_id":  sessionID,
+			"phase":       currentPhase,
+			"phase_state": phaseState,
+		}).Warn("[EXTRACTOR] DEBUG: No required fields found for this phase/state!")
 		return map[string]interface{}{}, nil
 	}
 
@@ -91,13 +113,17 @@ func (e *DataExtractor) ExtractDataFromTurn(
 		return map[string]interface{}{}, nil // Don't fail the conversation
 	}
 
+	// Normalize extracted values using extractor_hints from schema
+	normalized := e.normalizeExtractedData(extracted, missingFields)
+
 	logger.AppLogger.WithFields(logrus.Fields{
 		"session_id": sessionID,
 		"extracted":  extracted,
+		"normalized": normalized,
 		"method":     "llm",
 	}).Info("[EXTRACTOR] LLM extraction succeeded")
 
-	return extracted, nil
+	return normalized, nil
 }
 
 // ruleBasedExtraction uses simple regex/pattern matching for common fields
@@ -213,7 +239,37 @@ func (e *DataExtractor) buildExtractionPrompt(
 ) string {
 	var fieldDescriptions []string
 	for _, field := range requiredFields {
-		fieldDescriptions = append(fieldDescriptions, fmt.Sprintf("- %s: %s", field.Name, field.Description))
+		description := fmt.Sprintf("- %s: %s", field.Name, field.Description)
+
+		// Parse schema to check for extractor_hints or enum values
+		var schemaInfo map[string]interface{}
+		if err := json.Unmarshal([]byte(field.Schema), &schemaInfo); err == nil {
+			// Add enum values if present
+			if enumVals, ok := schemaInfo["enum"].([]interface{}); ok {
+				var enumStrs []string
+				for _, v := range enumVals {
+					if str, ok := v.(string); ok {
+						enumStrs = append(enumStrs, str)
+					}
+				}
+				if len(enumStrs) > 0 {
+					description += fmt.Sprintf(" (valid values: %s)", strings.Join(enumStrs, ", "))
+				}
+			}
+
+			// Add extractor_hints if present
+			if hints, ok := schemaInfo["extractor_hints"].(map[string]interface{}); ok {
+				var hintKeys []string
+				for key := range hints {
+					hintKeys = append(hintKeys, key)
+				}
+				if len(hintKeys) > 0 {
+					description += fmt.Sprintf(" (acceptable answers: %s)", strings.Join(hintKeys, ", "))
+				}
+			}
+		}
+
+		fieldDescriptions = append(fieldDescriptions, description)
 	}
 
 	return fmt.Sprintf(`You are a data extraction assistant for a therapy session.
@@ -241,4 +297,54 @@ Input: "Yes, I consent" → Output: {"consent_given": true}
 Input: "anxiety about presenting, maybe 7 or 8" → Output: {"selected_issue": "anxiety about presenting", "issue_intensity": 8}
 
 Output:`, strings.Join(fieldDescriptions, "\n"), coachResponse, userMessage)
+}
+
+// normalizeExtractedData uses extractor_hints to convert natural language to proper types
+func (e *DataExtractor) normalizeExtractedData(
+	extracted map[string]interface{},
+	fields []repository.PhaseData,
+) map[string]interface{} {
+	normalized := make(map[string]interface{})
+
+	for key, value := range extracted {
+		// Find the field schema
+		var fieldSchema map[string]interface{}
+		for _, field := range fields {
+			if field.Name == key {
+				if err := json.Unmarshal([]byte(field.Schema), &fieldSchema); err == nil {
+					break
+				}
+			}
+		}
+
+		// If no schema found or no extractor_hints, keep original value
+		if fieldSchema == nil {
+			normalized[key] = value
+			continue
+		}
+
+		hints, hasHints := fieldSchema["extractor_hints"].(map[string]interface{})
+		if !hasHints {
+			normalized[key] = value
+			continue
+		}
+
+		// Convert value to lowercase string for matching
+		strValue := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", value)))
+
+		// Check if value matches any hint key
+		if hintValue, exists := hints[strValue]; exists {
+			normalized[key] = hintValue
+			logger.AppLogger.WithFields(logrus.Fields{
+				"field":          key,
+				"original_value": value,
+				"normalized_to":  hintValue,
+			}).Info("[EXTRACTOR] Normalized value using extractor_hints")
+		} else {
+			// No match found, keep original value
+			normalized[key] = value
+		}
+	}
+
+	return normalized
 }

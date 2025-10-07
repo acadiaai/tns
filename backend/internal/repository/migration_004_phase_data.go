@@ -46,18 +46,21 @@ func migrate004PhaseData(db *gorm.DB) error {
 		// Stage 3 continued: Eye position
 		{ID: "brainspot_x", PhaseID: "stage_3_activating_setup", Name: "brainspot_x", Required: true,
 			Description: "Horizontal eye position (-1 to 1)",
-			Schema: `{"type": "number", "min": -1, "max": 1, "description": "Horizontal eye position"}`},
+			Schema: `{"type": "number", "min": -1, "max": 1, "description": "Horizontal eye position", "coach_prompt": "Ask: 'As you look around, which direction makes the sensation feel strongest - far left, slightly left, center, slightly right, or far right?'", "extractor_hints": {"far left": -1, "left": -0.5, "slightly left": -0.3, "center": 0, "slightly right": 0.3, "right": 0.5, "far right": 1}}`},
 		{ID: "brainspot_y", PhaseID: "stage_3_activating_setup", Name: "brainspot_y", Required: true,
 			Description: "Vertical eye position (-1 to 1)",
-			Schema: `{"type": "number", "min": -1, "max": 1, "description": "Vertical eye position"}`},
+			Schema: `{"type": "number", "min": -1, "max": 1, "description": "Vertical eye position", "coach_prompt": "Ask: 'Now for vertical position - is that spot more toward the top, middle, or bottom of your visual field?'", "extractor_hints": {"top": 1, "upper": 0.7, "slightly up": 0.3, "middle": 0, "eye level": 0, "slightly down": -0.3, "lower": -0.7, "bottom": -1, "up": 0.5, "down": -0.5}}`},
 		{ID: "spot_type", PhaseID: "stage_3_activating_setup", Name: "spot_type", Required: true,
 			Description: "Type of brainspot (activation or resource)",
-			Schema: `{"type": "string", "enum": ["activation", "resource"], "description": "Type of brainspot"}`},
+			Schema: `{"type": "string", "enum": ["activation", "resource"], "description": "Type of brainspot", "coach_prompt": "Ask: 'Does focusing on this spot intensify the feeling or calm it? If it intensifies, this is an activation spot. If it calms you, it's a resource spot.'"}`},
 
 		// Stage 4: Focused mindfulness (timed waiting phase)
+		// PRE_WAIT: No data collection - just instructions and Begin button
+		// POST_WAIT: Collect confirmation to move on
 		{ID: "ready_to_move_on", PhaseID: "stage_4_focused_mindfulness", Name: "ready_to_move_on", Required: true,
 			Description: "Confirmation they're ready to continue after meditation",
-			Schema: `{"type": "boolean", "description": "Ready to move on from meditation"}`},
+			Schema:     `{"type": "boolean", "description": "Ready to move on from meditation", "coach_prompt": "Ask: 'Are you ready to move on?'", "extractor_hints": {"yes": true, "yeah": true, "yep": true, "sure": true, "ready": true, "ok": true, "okay": true, "i'm ready": true, "no": false, "not yet": false, "wait": false, "hold on": false}}`,
+			PhaseState: "post_wait"}, // ONLY collect during post_wait
 
 		// Stage 5: Checking In
 		{ID: "current_suds", PhaseID: "stage_5_checking_in", Name: "suds_current", Required: true,
@@ -68,9 +71,6 @@ func migrate004PhaseData(db *gorm.DB) error {
 			Schema: `{"type": "string", "description": "Observations from processing"}`},
 
 		// Stage 6: Micro-reprocessing
-		{ID: "micro_technique", PhaseID: "stage_6_micro_reprocessing", Name: "technique_used", Required: true,
-			Description: "De-escalation technique applied",
-			Schema: `{"type": "string", "enum": ["bilateral_sound", "breathing", "grounding", "resource_spot"], "description": "Technique used for de-escalation"}`},
 		{ID: "micro_effectiveness", PhaseID: "stage_6_micro_reprocessing", Name: "effectiveness", Required: true,
 			Description: "How effective was the technique?",
 			Schema: `{"type": "string", "description": "Effectiveness of the technique"}`},

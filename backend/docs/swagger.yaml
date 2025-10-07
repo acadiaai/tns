@@ -82,6 +82,15 @@ definitions:
       to_phase_id:
         type: string
     type: object
+  api.SessionPathResponse:
+    properties:
+      session_id:
+        type: string
+      visits:
+        items:
+          $ref: '#/definitions/api.VisitNode'
+        type: array
+    type: object
   api.UpdatePhaseRequest:
     properties:
       color:
@@ -112,6 +121,32 @@ definitions:
         type: string
       description:
         type: string
+    type: object
+  api.VisitNode:
+    properties:
+      collected_data:
+        additionalProperties: true
+        type: object
+      entered_at:
+        type: string
+      entered_from_visit_id:
+        type: string
+      exit_condition:
+        type: string
+      exit_transition_id:
+        type: string
+      exited_at:
+        type: string
+      id:
+        type: string
+      is_current:
+        type: boolean
+      phase_id:
+        type: string
+      phase_name:
+        type: string
+      visit_number:
+        type: integer
     type: object
   repository.Phase:
     properties:
@@ -223,6 +258,9 @@ definitions:
         - $ref: '#/definitions/repository.Phase'
         description: Relationships
       phase_id:
+        type: string
+      phase_state:
+        description: 'For timed_waiting: "pre_wait" or "post_wait"'
         type: string
       required:
         type: boolean
@@ -669,6 +707,25 @@ paths:
               type: string
             type: object
       summary: Get last constructed context for session
+      tags:
+      - sessions
+  /api/sessions/{sessionId}/path:
+    get:
+      description: Returns the complete path of phase visits for a session
+      parameters:
+      - description: Session ID
+        in: path
+        name: sessionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SessionPathResponse'
+      summary: Get session path
       tags:
       - sessions
   /api/system-prompt:

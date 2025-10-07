@@ -10,6 +10,7 @@ import (
 	"therapy-navigation-system/internal/repository"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // Build metadata - set at compile time via -ldflags
@@ -112,6 +113,33 @@ func CreateSessionHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := repository.DB.Create(&session).Error; err != nil {
 		logger.AppLogger.WithError(err).Error("Failed to create session")
+		http.Error(w, "Failed to create session", http.StatusInternalServerError)
+		return
+	}
+
+	// Create initial visit for the pre_session phase
+	initialVisitID := uuid.New().String()
+	initialVisit := repository.SessionPhaseVisit{
+		ID:            initialVisitID,
+		SessionID:     session.ID,
+		PhaseID:       "pre_session",
+		VisitNumber:   1,
+		EnteredAt:     time.Now(),
+		IsCurrent:     true,
+		CollectedData: "{}",
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	if err := repository.DB.Create(&initialVisit).Error; err != nil {
+		logger.AppLogger.WithError(err).Error("Failed to create initial visit")
+		http.Error(w, "Failed to create session", http.StatusInternalServerError)
+		return
+	}
+
+	// Update session to point to initial visit
+	if err := repository.DB.Model(&session).Update("current_visit_id", initialVisitID).Error; err != nil {
+		logger.AppLogger.WithError(err).Error("Failed to set current_visit_id")
 		http.Error(w, "Failed to create session", http.StatusInternalServerError)
 		return
 	}

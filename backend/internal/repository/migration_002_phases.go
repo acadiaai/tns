@@ -37,7 +37,7 @@ func migrate002Phases(db *gorm.DB) error {
 			DisplayName:                "Information Gathering",
 			Description:                "History (when started/worsened), current status (impacts), desired outcome",
 			Position:                   3,
-			MinimumTurns:               3,
+			MinimumTurns:               1,
 			RecommendedDurationSeconds: 300, // 5 minutes
 			Icon:                       "BarChart2",
 			Color:                      "#2196F3",
@@ -48,7 +48,7 @@ func migrate002Phases(db *gorm.DB) error {
 			DisplayName:                "Activating & Setup",
 			Description:                "Activate issue, rate SUDs (0-10), find body location, locate eye position",
 			Position:                   4,
-			MinimumTurns:               3,
+			MinimumTurns:               1,
 			RecommendedDurationSeconds: 240, // 4 minutes
 			Icon:                       "Eye",
 			Color:                      "#FF9800",

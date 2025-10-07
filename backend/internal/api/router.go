@@ -101,6 +101,7 @@ func NewRouter() *chi.Mux {
 		r.Route("/sessions/{sessionId}", func(r chi.Router) {
 			r.Get("/", GetSessionHandler)
 			r.Get("/messages", GetMessagesHandler)
+			r.Get("/path", GetSessionPathHandler)
 		})
 
 		// Session prompts endpoint

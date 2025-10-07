@@ -19,6 +19,10 @@ export type repository_PhaseData = {
      */
     phase?: repository_Phase;
     phase_id?: string;
+    /**
+     * For timed_waiting: "pre_wait" or "post_wait"
+     */
+    phase_state?: string;
     required?: boolean;
     /**
      * JSON Schema for validation

@@ -19,16 +19,19 @@ func migrate003PhaseTransitions(db *gorm.DB) error {
 		// Stage 4 (Mindfulness) always goes to Stage 5 (Check-in)
 		{FromPhaseID: "stage_4_focused_mindfulness", ToPhaseID: "stage_5_checking_in"},
 
-		// Stage 5 (Check-in) can branch based on SUDs and total time:
-		// - Back to Stage 4 if SUDs > 0 and time < 20 min (loop)
-		{FromPhaseID: "stage_5_checking_in", ToPhaseID: "stage_4_focused_mindfulness", Condition: "suds_above_zero_continue"},
-		// - To Stage 6 if SUDs > 0 and time >= 20 min
-		{FromPhaseID: "stage_5_checking_in", ToPhaseID: "stage_6_micro_reprocessing", Condition: "suds_above_zero_timeout"},
-		// - To Stage 7 if SUDs = 0
-		{FromPhaseID: "stage_5_checking_in", ToPhaseID: "stage_7_squeeze_lemon", Condition: "suds_zero"},
+		// Stage 5 (Check-in) decision tree based on SUDs:
+		// - Back to Stage 4 if SUDs > 0 (priority 1 - checked first)
+		{FromPhaseID: "stage_5_checking_in", ToPhaseID: "stage_4_focused_mindfulness", Condition: "suds_current > 0", Priority: 1},
+		// - To Stage 6 if SUDs > 0 and time >= 20 min (DISABLED for speedrunning - time-based logic not implemented yet)
+		{FromPhaseID: "stage_5_checking_in", ToPhaseID: "stage_6_micro_reprocessing", Condition: "", Priority: 0, IsActive: false},
+		// - To Stage 7 if SUDs = 0 (priority 2)
+		{FromPhaseID: "stage_5_checking_in", ToPhaseID: "stage_7_squeeze_lemon", Condition: "suds_current = 0", Priority: 2},
 
-		// Stage 6 (Micro-reprocessing) returns to Stage 4
-		{FromPhaseID: "stage_6_micro_reprocessing", ToPhaseID: "stage_4_focused_mindfulness"},
+		// Stage 6 (Micro-reprocessing) decision tree:
+		// - Back to Stage 4 if SUDs > 0 after intervention (priority 1)
+		{FromPhaseID: "stage_6_micro_reprocessing", ToPhaseID: "stage_4_focused_mindfulness", Condition: "suds_current > 0", Priority: 1},
+		// - To Stage 7 if SUDs = 0 (priority 2)
+		{FromPhaseID: "stage_6_micro_reprocessing", ToPhaseID: "stage_7_squeeze_lemon", Condition: "suds_current = 0", Priority: 2},
 
 		// Stage 7 (Squeeze Lemon) to Stage 8 (Expansion)
 		{FromPhaseID: "stage_7_squeeze_lemon", ToPhaseID: "stage_8_expansion"},
@@ -43,9 +46,17 @@ func migrate003PhaseTransitions(db *gorm.DB) error {
 			ID:          trans.FromPhaseID + "_to_" + trans.ToPhaseID,
 			FromPhaseID: trans.FromPhaseID,
 			ToPhaseID:   trans.ToPhaseID,
-			IsActive:    true,
+			Condition:   trans.Condition,
+			Priority:    trans.Priority,
+			IsActive:    trans.IsActive,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
+		}
+
+		// If IsActive is not explicitly set to false, default to true
+		if !trans.IsActive && trans.Condition == "" && trans.Priority == 0 {
+			// This is a default transition (no explicit IsActive set)
+			transition.IsActive = true
 		}
 
 		if err := db.FirstOrCreate(&transition, PhaseTransition{

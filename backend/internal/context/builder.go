@@ -3,6 +3,7 @@ package contextbuilder
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -186,7 +187,7 @@ func BuildTurnContext(sessionID string, phase string) (*ContextBundle, error) {
 
 	// 3) Awareness summary from session
 	logger.AppLogger.WithField("session_id", sessionID).Info("[CONTEXT_DEBUG] About to build awareness summary")
-	awareness := buildAwarenessSummary(sessionID)
+	awareness := buildAwarenessSummary(sessionID, phaseState)
 	logger.AppLogger.WithField("session_id", sessionID).Info("[CONTEXT_DEBUG] Awareness summary built")
 
 	// 4) Working memory (recent messages)
@@ -201,15 +202,26 @@ func BuildTurnContext(sessionID string, phase string) (*ContextBundle, error) {
 		// Check if phase just started (within last 3 seconds) AND working memory exists
 		timeSincePhaseStart := time.Since(session.PhaseStartTime)
 		if timeSincePhaseStart < 3*time.Second && workingMemory != "" {
-			phaseTransitionInstruction = `
+			// Special instruction for pre_wait phases - don't ask questions, just give instructions
+			if phaseState == "pre_wait" {
+				phaseTransitionInstruction = `
+PHASE TRANSITION DETECTED:
+You just transitioned to a new phase. The previous conversation is shown in Working Memory above.
+DO NOT greet the client again - you already did that in the previous phase.
+DO NOT ask any questions - simply provide the instructions for this phase as described in your phase guidance above.
+Reference the previous conversation naturally to maintain continuity.`
+			} else {
+				phaseTransitionInstruction = `
 PHASE TRANSITION DETECTED:
 You just transitioned to a new phase. The previous conversation is shown in Working Memory above.
 DO NOT greet the client again - you already did that in the previous phase.
 Instead, begin this new phase by asking the first appropriate question or making a relevant statement for this phase's purpose.
 Reference the previous conversation naturally to maintain continuity.`
+			}
 			logger.AppLogger.WithFields(map[string]interface{}{
 				"session_id":         sessionID,
 				"phase":              phase,
+				"phase_state":        phaseState,
 				"time_since_start":   timeSincePhaseStart.Seconds(),
 			}).Info("[CONTEXT_DEBUG] Post-transition detected - adding explicit instruction")
 		}
@@ -259,6 +271,7 @@ Reference the previous conversation naturally to maintain continuity.`
 	if finalAwareness != "" {
 		sb.WriteString("\n\nAWARENESS\n")
 		sb.WriteString(finalAwareness)
+		sb.WriteString("\n\nIMPORTANT: Ask specifically for each MISSING REQUIRED FIELD shown above. Do not ask generic questions.\n")
 	}
 	if finalWorking != "" {
 		sb.WriteString("\n\nWORKING MEMORY (recent dialogue)\n")
@@ -325,7 +338,7 @@ Reference the previous conversation naturally to maintain continuity.`
 	return bundle, nil
 }
 
-func buildAwarenessSummary(sessionID string) string {
+func buildAwarenessSummary(sessionID string, phaseState string) string {
 	var session repository.Session
 	if err := repository.DB.First(&session, "id = ?", sessionID).Error; err != nil {
 		return ""
@@ -335,21 +348,37 @@ func buildAwarenessSummary(sessionID string) string {
 		fmt.Sprintf("Phase: %s", session.Phase),
 	}
 
-	// Get all collected field values for this session
-	var fieldValues []repository.SessionFieldValue
-	repository.DB.Where("session_id = ?", session.ID).Find(&fieldValues)
+	// Get required fields for current phase, filtered by phase_state
+	var requiredFields []repository.PhaseData
+	query := repository.DB.Where("phase_id = ? AND required = ?", session.Phase, true)
+	if phaseState != "" {
+		// For timed_waiting phases, only get fields matching the phase_state
+		query = query.Where("phase_state = ? OR phase_state IS NULL OR phase_state = ''", phaseState)
+	} else {
+		// For non-timed phases, exclude fields with phase_state
+		query = query.Where("phase_state IS NULL OR phase_state = ''")
+	}
+	query.Find(&requiredFields)
 
-	// Build map of collected fields for current phase
+	// Get collected data from current visit's JSON
+	var currentVisit repository.SessionPhaseVisit
 	collectedForPhase := make(map[string]string)
-	for _, fv := range fieldValues {
-		// Check if this field belongs to current phase
-		var phaseData repository.PhaseData
-		if err := repository.DB.Where("phase_id = ? AND name = ?", session.Phase, fv.FieldName).First(&phaseData).Error; err == nil {
-			collectedForPhase[fv.FieldName] = fv.FieldValue
+
+	if err := repository.DB.Where("session_id = ? AND is_current = ?", session.ID, true).First(&currentVisit).Error; err == nil {
+		// Parse collected_data JSON
+		var collectedData map[string]interface{}
+		if err := json.Unmarshal([]byte(currentVisit.CollectedData), &collectedData); err == nil {
+			// Convert collected data to string map, filtering to current phase's required fields
+			for _, reqField := range requiredFields {
+				if value, exists := collectedData[reqField.Name]; exists && value != nil {
+					// Convert value to string for display
+					collectedForPhase[reqField.Name] = fmt.Sprintf("%v", value)
+				}
+			}
 		}
 	}
 
-	// Show ALL collected data for current phase (not just hardcoded fields)
+	// Show collected data for current phase only
 	if len(collectedForPhase) > 0 {
 		lines = append(lines, "")
 		lines = append(lines, "COLLECTED DATA:")
@@ -358,24 +387,54 @@ func buildAwarenessSummary(sessionID string) string {
 		}
 	}
 
-	// Get required fields for current phase
-	var requiredFields []repository.PhaseData
-	repository.DB.Where("phase_id = ? AND required = ?", session.Phase, true).Find(&requiredFields)
-
-	// Find missing required fields
-	var missing []string
+	// Find missing required fields for current phase
+	var missingFields []repository.PhaseData
 	for _, field := range requiredFields {
 		if _, exists := collectedForPhase[field.Name]; !exists {
-			missing = append(missing, field.Name)
+			missingFields = append(missingFields, field)
 		}
 	}
 
-	// Show what's still needed - this guides the coach toward completing the phase
-	if len(missing) > 0 {
+	// Show what's still needed with schema info - this guides the coach toward completing the phase
+	if len(missingFields) > 0 {
 		lines = append(lines, "")
 		lines = append(lines, "MISSING REQUIRED FIELDS:")
-		for _, fieldName := range missing {
-			lines = append(lines, fmt.Sprintf("  - %s", fieldName))
+		for _, field := range missingFields {
+			// Parse schema to extract description, enum values, and coach_prompt
+			var schemaInfo map[string]interface{}
+			if err := json.Unmarshal([]byte(field.Schema), &schemaInfo); err == nil {
+				description := ""
+				if desc, ok := schemaInfo["description"].(string); ok {
+					description = desc
+				}
+
+				enumInfo := ""
+				if enumVals, ok := schemaInfo["enum"].([]interface{}); ok {
+					var enumStrs []string
+					for _, v := range enumVals {
+						if str, ok := v.(string); ok {
+							enumStrs = append(enumStrs, str)
+						}
+					}
+					if len(enumStrs) > 0 {
+						enumInfo = fmt.Sprintf(" (options: %s)", strings.Join(enumStrs, ", "))
+					}
+				}
+
+				coachPrompt := ""
+				if prompt, ok := schemaInfo["coach_prompt"].(string); ok {
+					coachPrompt = "\n    " + prompt
+				}
+
+				if description != "" || enumInfo != "" || coachPrompt != "" {
+					lines = append(lines, fmt.Sprintf("  - %s: %s%s%s", field.Name, description, enumInfo, coachPrompt))
+				} else {
+					lines = append(lines, fmt.Sprintf("  - %s", field.Name))
+				}
+			} else {
+				// Fallback if schema parsing fails
+				lines = append(lines, fmt.Sprintf("  - %s", field.Name))
+			}
 		}
 	}
 
@@ -463,15 +522,6 @@ func buildPhaseContextFromStateMachine(sessionID string, currentPhase string) st
 
 	// Just show current phase - extractor handles data collection
 	sb.WriteString(fmt.Sprintf("CURRENT PHASE: %s\n", currentPhase))
-
-	// Get possible transitions
-	var transitions []repository.PhaseTransition
-	if err := repository.DB.Where("from_phase_id = ?", currentPhase).Find(&transitions).Error; err == nil && len(transitions) > 0 {
-		sb.WriteString("\nNEXT PHASES AVAILABLE:\n")
-		for _, trans := range transitions {
-			sb.WriteString(fmt.Sprintf("- %s\n", trans.ToPhaseID))
-		}
-	}
 
 	// TIME AWARENESS DISABLED: Using wall clock time was misleading the AI
 	// TODO: Implement proper accumulated therapy time tracking

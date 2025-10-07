@@ -89,6 +89,33 @@ export const useMessages = (ws: WebSocket | null): MessagesHook => {
           }));
           console.log(`Loaded ${enhancedMessages.length} messages from WebSocket`);
           setMessages(enhancedMessages);
+        } else if (data.type === 'wait_completed') {
+          // Timed waiting period completed - insert as a special message
+          console.log('✅ WAIT COMPLETED - inserting completion message:', data.metadata);
+          const completionMessage: Message = {
+            id: `wait_completed_${Date.now()}`,
+            session_id: data.metadata?.session_id || '',
+            role: 'system',
+            content: '',
+            message_type: 'wait_completed',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            metadata: JSON.stringify({
+              phase: data.metadata?.phase,
+              processing_minutes: data.metadata?.processing_minutes,
+              elapsed_seconds: data.metadata?.elapsed_seconds
+            })
+          };
+          setMessages(prev => [...prev, completionMessage]);
+
+          // Also dispatch event for SessionDashboard
+          window.dispatchEvent(new CustomEvent('wait_completed', {
+            detail: {
+              phase: data.metadata?.phase,
+              processing_minutes: data.metadata?.processing_minutes,
+              elapsed_seconds: data.metadata?.elapsed_seconds
+            }
+          }));
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);

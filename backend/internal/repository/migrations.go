@@ -39,6 +39,7 @@ func RunMigrations(db *gorm.DB) error {
 		{ID: "004", Name: "phase_data_requirements", Func: migrate004PhaseData},
 		{ID: "005", Name: "therapy_prompts", Func: migrate005Prompts},
 		{ID: "006", Name: "phase_types", Func: migrate006PhaseTypes},
+		{ID: "007", Name: "session_phase_visits", Func: migration007SessionPhaseVisits},
 	}
 
 	// Run each migration if not already applied

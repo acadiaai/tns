@@ -40,7 +40,7 @@ type Session struct {
 	ClientID    string    `gorm:"type:uuid;not null" json:"client_id"`
 	TherapistID string    `gorm:"type:uuid;not null" json:"therapist_id"`
 	Status      string    `gorm:"default:scheduled" json:"status"` // scheduled, active, completed
-	Phase       string    `gorm:"default:pre_session" json:"phase"`
+	Phase       string    `gorm:"default:pre_session" json:"phase"` // Current phase (denormalized for quick lookup)
 	StartTime   time.Time `json:"start_time"`
 	EndTime     *time.Time `json:"end_time,omitempty"`
 	Notes       string    `gorm:"type:text" json:"notes,omitempty"`
@@ -48,8 +48,9 @@ type Session struct {
 	// Phase tracking
 	PhaseStartTime       time.Time `json:"phase_start_time"`
 	PhaseTransitionCount int       `json:"phase_transition_count" gorm:"default:0"`
+	CurrentVisitID       *string   `gorm:"type:uuid" json:"current_visit_id"` // Points to current visit node
 
-	// Mindfulness tracking for Stage 4/5 loops
+	// Legacy tracking (keeping for now)
 	TotalMindfulnessSeconds int    `json:"total_mindfulness_seconds" gorm:"default:0"`
 	MindfulnessLoopCount    int    `json:"mindfulness_loop_count" gorm:"default:0"`
 	LastSudsValue           int    `json:"last_suds_value" gorm:"default:-1"`
@@ -64,6 +65,39 @@ type Session struct {
 	Therapist    Therapist             `json:"therapist,omitempty" gorm:"foreignKey:TherapistID"`
 	Messages     []Message             `json:"messages,omitempty" gorm:"foreignKey:SessionID"`
 	FieldValues  []SessionFieldValue   `json:"field_values,omitempty" gorm:"foreignKey:SessionID"`
+	PhaseVisits  []SessionPhaseVisit   `json:"phase_visits,omitempty" gorm:"foreignKey:SessionID"`
+	CurrentVisit *SessionPhaseVisit    `json:"current_visit,omitempty" gorm:"foreignKey:CurrentVisitID"`
+}
+
+// SessionPhaseVisit represents a single visit to a phase in the session journey
+// This creates a linked list / DAG of the actual path taken through the workflow
+type SessionPhaseVisit struct {
+	ID        string    `gorm:"type:uuid;primary_key;" json:"id"`
+	SessionID string    `gorm:"type:uuid;not null;index" json:"session_id"`
+	PhaseID   string    `gorm:"not null" json:"phase_id"`
+
+	// Visit tracking
+	VisitNumber int       `json:"visit_number" gorm:"default:1"` // 1st visit to this phase, 2nd visit, etc.
+	EnteredAt   time.Time `json:"entered_at"`
+	ExitedAt    *time.Time `json:"exited_at"`
+	IsCurrent   bool      `json:"is_current" gorm:"default:false;index"`
+
+	// Graph structure
+	EnteredFromVisitID *string `gorm:"type:uuid" json:"entered_from_visit_id"` // Previous visit node
+	ExitTransitionID   *string `json:"exit_transition_id"` // Which transition was taken on exit
+
+	// Data collected during this specific visit
+	CollectedData string `json:"collected_data" gorm:"type:text"` // JSON: {suds_current: 3, observations: "..."}
+
+	// Timestamps
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// Relationships
+	Session           Session              `json:"session,omitempty" gorm:"foreignKey:SessionID"`
+	Phase             Phase                `json:"phase,omitempty" gorm:"foreignKey:PhaseID"`
+	EnteredFromVisit  *SessionPhaseVisit   `json:"entered_from_visit,omitempty" gorm:"foreignKey:EnteredFromVisitID"`
+	ExitTransition    *PhaseTransition     `json:"exit_transition,omitempty" gorm:"foreignKey:ExitTransitionID"`
 }
 
 // Message represents a chat message in a therapy session
@@ -124,6 +158,7 @@ type PhaseData struct {
 	Optional    bool      `json:"optional" gorm:"default:true"`
 	Schema      string    `json:"schema" gorm:"type:text"` // JSON Schema for validation
 	Description string    `json:"description" gorm:"type:text"`
+	PhaseState  string    `json:"phase_state" gorm:"type:text"` // For timed_waiting: "pre_wait" or "post_wait"
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 

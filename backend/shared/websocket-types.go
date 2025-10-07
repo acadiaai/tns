@@ -126,6 +126,19 @@ type Phase struct {
 	PreWaitMessage      string `json:"pre_wait_message,omitempty"`      // Message before waiting
 	PostWaitPrompt      string `json:"post_wait_prompt,omitempty"`      // Prompt after waiting
 	VisualizationType   string `json:"visualization_type,omitempty"`    // Type of visualization during wait
+
+	// Transitions
+	TransitionsFrom []PhaseTransition `json:"transitions_from,omitempty"` // Transitions FROM this phase to other phases
+}
+
+// PhaseTransition represents a conditional transition between phases
+type PhaseTransition struct {
+	ID          string `json:"id"`
+	FromPhaseID string `json:"from_phase_id"`
+	ToPhaseID   string `json:"to_phase_id"`
+	Condition   string `json:"condition,omitempty"` // Optional condition expression
+	Priority    int    `json:"priority"`
+	ToPhase     *Phase `json:"to_phase,omitempty"` // Target phase details (optional, for display)
 }
 
 // PhaseDataField represents a data field required or optional for a phase

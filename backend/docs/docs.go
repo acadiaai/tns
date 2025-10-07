@@ -496,6 +496,35 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/sessions/{sessionId}/path": {
+            "get": {
+                "description": "Returns the complete path of phase visits for a session",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Get session path",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SessionPathResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/system-prompt": {
             "get": {
                 "description": "Retrieve the current system prompt configuration",
@@ -715,6 +744,20 @@ const docTemplate = `{
                 }
             }
         },
+        "api.SessionPathResponse": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string"
+                },
+                "visits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.VisitNode"
+                    }
+                }
+            }
+        },
         "api.UpdatePhaseRequest": {
             "type": "object",
             "properties": {
@@ -760,6 +803,45 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                }
+            }
+        },
+        "api.VisitNode": {
+            "type": "object",
+            "properties": {
+                "collected_data": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "entered_at": {
+                    "type": "string"
+                },
+                "entered_from_visit_id": {
+                    "type": "string"
+                },
+                "exit_condition": {
+                    "type": "string"
+                },
+                "exit_transition_id": {
+                    "type": "string"
+                },
+                "exited_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_current": {
+                    "type": "boolean"
+                },
+                "phase_id": {
+                    "type": "string"
+                },
+                "phase_name": {
+                    "type": "string"
+                },
+                "visit_number": {
+                    "type": "integer"
                 }
             }
         },
@@ -926,6 +1008,10 @@ const docTemplate = `{
                     ]
                 },
                 "phase_id": {
+                    "type": "string"
+                },
+                "phase_state": {
+                    "description": "For timed_waiting: \"pre_wait\" or \"post_wait\"",
                     "type": "string"
                 },
                 "required": {

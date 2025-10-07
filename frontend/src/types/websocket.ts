@@ -109,6 +109,7 @@ export interface Phase {
   pre_wait_message?: string;
   post_wait_prompt?: string;
   visualization_type?: string;
+  transitions_from?: PhaseTransition[];
 }
 
 export interface PhaseDataField {
@@ -116,6 +117,15 @@ export interface PhaseDataField {
   description: string;
   required: boolean;
   data_type: string;
+}
+
+export interface PhaseTransition {
+  id: string;
+  from_phase_id: string;
+  to_phase_id: string;
+  condition?: string;
+  priority: number;
+  to_phase?: Phase;
 }
 
 export interface TransitionOption {
