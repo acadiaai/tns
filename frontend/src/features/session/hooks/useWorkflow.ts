@@ -202,7 +202,7 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
           setIsPaused(true);
         } else if (data.type === 'session_resumed') {
           setIsPaused(false);
-        } else if (data.type === 'session_completed') {
+        } else if (data.type === 'session_completed' || data.type === 'session_stopped') {
           // Handle session completion WebSocket event
 
           setWorkflowStatus(prevStatus => {

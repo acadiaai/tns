@@ -143,6 +143,35 @@ func TransitionPhaseHandler(w http.ResponseWriter, r *http.Request) {
 		"phase_type": targetPhase.Type,
 	}).Info("Phase transition completed")
 
+	// Auto-complete session when reaching completion phase
+	if req.ToPhaseID == "completion" {
+		now := time.Now()
+		session.Status = "completed"
+		session.EndTime = &now
+
+		if err := repository.DB.Save(&session).Error; err != nil {
+			logger.AppLogger.WithError(err).Error("Failed to auto-complete session")
+		} else {
+			logger.AppLogger.WithFields(map[string]interface{}{
+				"session_id": session.ID,
+				"phase":      req.ToPhaseID,
+				"status":     "completed",
+				"end_time":   now,
+			}).Info("Session auto-completed on reaching completion phase")
+
+			// Broadcast session completion
+			broadcastSessionUpdate(session.ID, shared.TherapySessionUpdate{
+				Type: "session_stopped",
+				Metadata: map[string]interface{}{
+					"reason": "Session completed",
+					"status": "completed",
+					"phase":  req.ToPhaseID,
+				},
+				Timestamp: time.Now(),
+			})
+		}
+	}
+
 	// Check if entering a timed waiting phase
 	if targetPhase.Type == "timed_waiting" && targetPhase.WaitDurationSeconds > 0 {
 		logger.AppLogger.WithFields(map[string]interface{}{

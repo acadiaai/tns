@@ -932,6 +932,30 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 	if wsMessage.Type == "stop_session" {
 		logger.AppLogger.WithField("session_id", sessionID).Info("Session stop requested")
 
+		// Load session to update status in database
+		var session repository.Session
+		if err := repository.DB.First(&session, "id = ?", sessionID).Error; err != nil {
+			logger.AppLogger.WithError(err).Error("Failed to load session for stop")
+			return
+		}
+
+		// Update session status and end time
+		now := time.Now()
+		session.Status = "completed"
+		session.EndTime = &now
+
+		if err := repository.DB.Save(&session).Error; err != nil {
+			logger.AppLogger.WithError(err).Error("Failed to update session status to completed")
+			return
+		}
+
+		logger.AppLogger.WithFields(map[string]interface{}{
+			"session_id": sessionID,
+			"phase":      session.Phase,
+			"status":     "completed",
+			"end_time":   now,
+		}).Info("Session marked as completed in database")
+
 		// Stop the timer
 		sessionTimerMutex.Lock()
 		if timerChan, exists := sessionTimers[sessionID]; exists {
@@ -949,6 +973,8 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 			Type: "session_stopped",
 			Metadata: map[string]interface{}{
 				"reason": "Session stopped by user",
+				"status": "completed",
+				"phase":  session.Phase,
 			},
 			Timestamp: time.Now(),
 		})

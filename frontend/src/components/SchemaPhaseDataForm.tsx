@@ -269,7 +269,7 @@ const SchemaFieldCard: React.FC<SchemaFieldCardProps> = ({
         return (
           <div className="flex-1">
             <div className="px-3 py-1.5 rounded-lg bg-gray-500/10 border border-gray-500/20">
-              <span className="text-sm text-gray-200 break-words">
+              <span className="text-sm text-gray-200 break-words" style={{ wordBreak: 'break-word' }}>
                 {val}
               </span>
             </div>

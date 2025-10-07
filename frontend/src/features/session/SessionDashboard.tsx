@@ -236,10 +236,11 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
             )}
 
             {/* Neon Timer Controls */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl backdrop-blur-md bg-white/[0.03] border border-white/10">
-              <div className="flex items-center gap-1.5">
-                {/* Play Button */}
-                <button
+            {!isCompleted && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl backdrop-blur-md bg-white/[0.03] border border-white/10">
+                <div className="flex items-center gap-1.5">
+                  {/* Play Button */}
+                  <button
                   className={`p-2 rounded-lg transition-all ${
                     !isPaused
                       ? 'bg-green-500/30 border-2 border-green-400 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.5)] cursor-default'
@@ -402,7 +403,8 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
                   </div>
                 )}
               </div>
-            </div>
+              </div>
+            )}
 
             {/* Empty - removed redundant status badge */}
           </div>
