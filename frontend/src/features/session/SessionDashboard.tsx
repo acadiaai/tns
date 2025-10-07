@@ -37,7 +37,9 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
   // Fullscreen waiting state
   const [showFullscreenWaiting, setShowFullscreenWaiting] = useState(false);
   const [waitingPhase, setWaitingPhase] = useState<any>(null);
-  const [hasShownTimedPrompt, setHasShownTimedPrompt] = useState<Record<string, boolean>>({});
+  const [timedWaitingStatus, setTimedWaitingStatus] = useState<'not_started' | 'in_progress' | 'completed'>('not_started');
+  const [timedWaitingElapsed, setTimedWaitingElapsed] = useState<number>(0);
+  const prevPhaseRef = React.useRef<string>('');
 
   // Get phase from WebSocket data - workflowStatus should have all we need
   const currentPhase = workflowStatus?.phase || workflowStatus?.current_state || '';
@@ -63,14 +65,64 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
   useEffect(() => {
     const phaseMetadata = phases.find(p => p.id === currentPhase);
 
+    // Detect phase change
+    const phaseChanged = prevPhaseRef.current !== currentPhase;
+    prevPhaseRef.current = currentPhase;
+
     if (phaseMetadata?.type === 'timed_waiting') {
       setWaitingPhase(phaseMetadata);
-    } else if (phaseMetadata?.type !== 'timed_waiting') {
-      // Phase changed away from timed waiting
+
+      // Check backend state to see if wait is already in progress
+      if (workflowStatus?.is_waiting === true) {
+        // Wait is in progress - show fullscreen timer
+        setTimedWaitingStatus('in_progress');
+        setShowFullscreenWaiting(true);
+      } else if (workflowStatus?.wait_completed_at) {
+        // Wait was completed
+        setTimedWaitingStatus('completed');
+        setShowFullscreenWaiting(false);
+      } else if (phaseChanged) {
+        // This is a NEW timed waiting phase
+        setTimedWaitingStatus('not_started');
+        setTimedWaitingElapsed(0);
+      }
+    } else {
+      // Not a timed waiting phase - cleanup
       setWaitingPhase(null);
       setShowFullscreenWaiting(false);
+      setTimedWaitingStatus('not_started');
+      setTimedWaitingElapsed(0);
     }
-  }, [currentPhase, phases]);
+  }, [currentPhase, phases, workflowStatus?.is_waiting, workflowStatus?.wait_completed_at]);
+
+  // Track elapsed time in timed waiting phase (but freeze on completion)
+  useEffect(() => {
+    if (waitingPhase && sessionTimer?.phase_elapsed_seconds !== undefined && timedWaitingStatus !== 'completed') {
+      setTimedWaitingElapsed(sessionTimer.phase_elapsed_seconds);
+    }
+  }, [waitingPhase, sessionTimer, timedWaitingStatus]);
+
+  // Listen for wait_completed event from backend
+  useEffect(() => {
+    const handleWaitCompleted = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('✅ Wait completed event received:', customEvent.detail);
+
+      const { elapsed_seconds } = customEvent.detail;
+
+      // Update state to show completion
+      setTimedWaitingStatus('completed');
+      if (elapsed_seconds !== undefined) {
+        setTimedWaitingElapsed(elapsed_seconds);
+      }
+
+      // Close fullscreen if open
+      setShowFullscreenWaiting(false);
+    };
+
+    window.addEventListener('wait_completed', handleWaitCompleted);
+    return () => window.removeEventListener('wait_completed', handleWaitCompleted);
+  }, []);
 
   // Build display info from WebSocket data first, fallback to API data
   const displayPhaseInfo = React.useMemo(() => {
@@ -419,16 +471,17 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
             onSendMessage={handleSendMessage}
             isCompleted={isCompleted}
             timedWaitingPhase={waitingPhase}
+            timedWaitingStatus={timedWaitingStatus}
+            timedWaitingElapsed={timedWaitingElapsed}
             onBeginTimedWaiting={() => {
               if (waitingPhase) {
                 setShowFullscreenWaiting(true);
-                setHasShownTimedPrompt(prev => ({ ...prev, [waitingPhase.id]: true }));
+                setTimedWaitingStatus('in_progress');
 
                 // Notify backend that wait period started
                 sendMessage({ type: 'start_wait' });
               }
             }}
-            hasShownTimedPrompt={hasShownTimedPrompt[waitingPhase?.id] || false}
           />
         </div>
 
@@ -473,18 +526,20 @@ export const SessionDashboard: React.FC<SessionDashboardProps> = ({ sessionId })
           onComplete={() => {
             // console.log('🎯 Fullscreen waiting completed');
             setShowFullscreenWaiting(false);
-            setWaitingPhase(null);
-            // The backend will handle auto-transition after the timer completes
+            setTimedWaitingStatus('completed');
+
+            // Notify backend that wait period ended
+            sendMessage({ type: 'end_wait' });
           }}
           onClose={() => {
-            // console.log('🎯 Fullscreen waiting manually closed');
+            console.log('🎯 Fullscreen waiting manually closed - sending end_wait message');
             setShowFullscreenWaiting(false);
+            setTimedWaitingStatus('completed');
 
             // Notify backend that wait period ended
             // Backend will auto-calculate processing_time_minutes
             sendMessage({ type: 'end_wait' });
-
-            setWaitingPhase(null);
+            console.log('✅ end_wait message sent to backend');
           }}
         />
       )}

@@ -3,7 +3,6 @@ package contextbuilder
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -218,18 +217,12 @@ Reference the previous conversation naturally to maintain continuity.`
 
 	// 5) Retrieval removed - ChromaDB integration deleted
 
-	// 6) Single universal MCP tool - handles everything
-	tools := []string{
-		"collect_structured_data(session_id, data) - Collect phase-required data and auto-transition when requirements are met",
-	}
-
-	// 7) Enforce a simple token budget per section (approx 4 chars/token)
+	// 6) Enforce a simple token budget per section (approx 4 chars/token)
 	const totalBudgetTokens = 1500
 	caps := map[string]int{
 		"system_phase": int(0.30 * float64(totalBudgetTokens)),
 		"awareness":    int(0.15 * float64(totalBudgetTokens)),
 		"working":      int(0.35 * float64(totalBudgetTokens)),
-		"tools":        int(0.05 * float64(totalBudgetTokens)),
 	}
 
 	rawSystemPhase := systemPrompt + "\n\n" + strings.Join(phaseTemplates, "\n")
@@ -252,13 +245,12 @@ Reference the previous conversation naturally to maintain continuity.`
 		if idx := strings.LastIndex(s[:cut], "\n"); idx > 0 && idx > cut-200 {
 			cut = idx
 		}
-		return s[:cut] + "\n…"
+		return s[:cut]
 	}
 
 	finalSystemPhase := truncate(rawSystemPhase, caps["system_phase"])
 	finalAwareness := truncate(awareness, caps["awareness"])
 	finalWorking := truncate(workingMemory, caps["working"])
-	finalTools := truncate(strings.Join(tools, ", "), caps["tools"])
 
 	// Assemble constructed prompt from truncated sections
 	var sb strings.Builder
@@ -286,17 +278,9 @@ Reference the previous conversation naturally to maintain continuity.`
 		sb.WriteString(phaseContext)
 	}
 
-	// Add phase requirements validation
-	requirementsStatus := buildPhaseRequirementsStatus(sessionID, phase)
-	if requirementsStatus != "" {
-		sb.WriteString("\n\nPHASE REQUIREMENTS STATUS\n")
-		sb.WriteString(requirementsStatus)
-	}
+	// Phase requirements are handled by extractor - AI doesn't need to see them
 
-	sb.WriteString("\n\nTOOLS\n")
-	sb.WriteString(finalTools)
-	sb.WriteString(fmt.Sprintf("\n\nSESSION INFO\nCurrent Session ID: %s (use this exact ID in all tool calls)\n", sessionID))
-	sb.WriteString("\n\nCONSTRAINTS\n\n🚨 CRITICAL RULE: ALWAYS provide text in EVERY response, even when calling tools\n\nTool Usage Examples:\n\n❌ BAD (tool call only, no text):\n[Calls collect_structured_data]\n[Returns empty text]\n\n✅ GOOD (tool call + text response):\n[Calls collect_structured_data]\n\"Thank you for sharing that. As you stay with that feeling in your chest, what do you notice?\"\n\nRules:\n- You MUST provide a text response in EVERY turn, even when calling tools\n- Tools execute silently in the background - users never see tool calls\n- After calling a tool, continue the conversation naturally\n- NEVER announce tool usage: Don't say \"I'm going to collect/gather/record that\"\n- NEVER repeat back what the user just said before calling a tool\n- If data was already collected in a previous phase (visible in Working Memory), DO NOT collect it again\n- Be concise and professional\n- When transitioning phases, guide the user smoothly into the next phase\n")
+	sb.WriteString(fmt.Sprintf("\n\nSESSION INFO\nCurrent Session ID: %s\n", sessionID))
 
 	constructed := sb.String()
 
@@ -309,7 +293,6 @@ Reference the previous conversation naturally to maintain continuity.`
 		"system_phase": finalSystemPhase,
 		"awareness":    finalAwareness,
 		"working":      finalWorking,
-		"tools":        finalTools,
 	}
 	tr := TokenReport{Sections: map[string]int{}, Total: 0}
 	for k, v := range sections {
@@ -325,7 +308,7 @@ Reference the previous conversation naturally to maintain continuity.`
 		Phase:             phase,
 		ConstructedPrompt: constructed,
 		TokenReport:       tr,
-		Tools:             tools,
+		Tools:             []string{}, // Empty - data extraction happens separately
 		Timestamp:         time.Now(),
 		PromptHash:        promptHash,
 	}
@@ -347,25 +330,55 @@ func buildAwarenessSummary(sessionID string) string {
 	if err := repository.DB.First(&session, "id = ?", sessionID).Error; err != nil {
 		return ""
 	}
-	// Removed elapsed time calculation - was using incorrect wall clock time
-	// TODO: Use accumulated therapy time from WebSocket timer when available
+
 	lines := []string{
 		fmt.Sprintf("Phase: %s", session.Phase),
 	}
 
-	// Get dynamic field values
+	// Get all collected field values for this session
 	var fieldValues []repository.SessionFieldValue
 	repository.DB.Where("session_id = ?", session.ID).Find(&fieldValues)
 
+	// Build map of collected fields for current phase
+	collectedForPhase := make(map[string]string)
 	for _, fv := range fieldValues {
-		if fv.FieldName == "suds_level" || fv.FieldName == "suds_current" {
-			lines = append(lines, fmt.Sprintf("SUDS: %s", fv.FieldValue))
-		} else if fv.FieldName == "body_location" {
-			lines = append(lines, fmt.Sprintf("Body location: %s", fv.FieldValue))
-		} else if fv.FieldName == "eye_position" {
-			lines = append(lines, fmt.Sprintf("Eye position: %s", fv.FieldValue))
+		// Check if this field belongs to current phase
+		var phaseData repository.PhaseData
+		if err := repository.DB.Where("phase_id = ? AND name = ?", session.Phase, fv.FieldName).First(&phaseData).Error; err == nil {
+			collectedForPhase[fv.FieldName] = fv.FieldValue
 		}
 	}
+
+	// Show ALL collected data for current phase (not just hardcoded fields)
+	if len(collectedForPhase) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, "COLLECTED DATA:")
+		for fieldName, fieldValue := range collectedForPhase {
+			lines = append(lines, fmt.Sprintf("  %s: %s", fieldName, fieldValue))
+		}
+	}
+
+	// Get required fields for current phase
+	var requiredFields []repository.PhaseData
+	repository.DB.Where("phase_id = ? AND required = ?", session.Phase, true).Find(&requiredFields)
+
+	// Find missing required fields
+	var missing []string
+	for _, field := range requiredFields {
+		if _, exists := collectedForPhase[field.Name]; !exists {
+			missing = append(missing, field.Name)
+		}
+	}
+
+	// Show what's still needed - this guides the coach toward completing the phase
+	if len(missing) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, "MISSING REQUIRED FIELDS:")
+		for _, fieldName := range missing {
+			lines = append(lines, fmt.Sprintf("  - %s", fieldName))
+		}
+	}
+
 	return "- " + strings.Join(lines, "\n- ")
 }
 
@@ -448,53 +461,8 @@ func buildPhaseContextFromStateMachine(sessionID string, currentPhase string) st
 		"phase_data_count": len(phaseData),
 	}).Info("[PHASE_CONTEXT_DEBUG] Found phase data items")
 
-	if len(phaseData) > 0 {
-		sb.WriteString(fmt.Sprintf("CURRENT PHASE: %s\n", currentPhase))
-		sb.WriteString("DATA YOU CAN CONTRIBUTE IN THIS PHASE:\n")
-
-		// Build a map of requirement schemas for easy reference
-		var schemaInfo []string
-		for _, item := range phaseData {
-			required := ""
-			if item.Required {
-				required = " (REQUIRED)"
-			}
-
-			// Parse schema to get field type and enum values if available
-			fieldType := "any"
-			enumValues := ""
-			if item.Schema != "" {
-				var schema map[string]interface{}
-				if err := json.Unmarshal([]byte(item.Schema), &schema); err == nil {
-					if t, ok := schema["type"].(string); ok {
-						fieldType = t
-					}
-					// Parse enum values if present
-					if enum, ok := schema["enum"].([]interface{}); ok {
-						var values []string
-						for _, v := range enum {
-							if str, ok := v.(string); ok {
-								values = append(values, str)
-							}
-						}
-						if len(values) > 0 {
-							enumValues = " [options: " + strings.Join(values, ", ") + "]"
-						}
-					}
-				}
-			}
-
-			sb.WriteString(fmt.Sprintf("- %s (%s%s): %s%s\n", item.Name, fieldType, enumValues, item.Description, required))
-			schemaInfo = append(schemaInfo, fmt.Sprintf("%s:%s", item.Name, fieldType))
-		}
-
-		sb.WriteString("\nTOOLS AVAILABLE (Universal MCP Tools):\n")
-		sb.WriteString("- get_phase_context(session_id) - Get current phase requirements and context\n")
-		sb.WriteString("- collect_structured_data(session_id, data) - Submit structured data including observations\n")
-		sb.WriteString(fmt.Sprintf("  Current phase expects: %s\n", strings.Join(schemaInfo, ", ")))
-		sb.WriteString("  Returns: ready_to_transition (bool) - if true, phase will auto-transition\n")
-		sb.WriteString("\nIMPORTANT: Only use these exact tool names. Any other tool will fail immediately.\n")
-	}
+	// Just show current phase - extractor handles data collection
+	sb.WriteString(fmt.Sprintf("CURRENT PHASE: %s\n", currentPhase))
 
 	// Get possible transitions
 	var transitions []repository.PhaseTransition

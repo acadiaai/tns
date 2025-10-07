@@ -338,6 +338,12 @@ func (s *MCPServer) handleCollectStructuredData(ctx context.Context, arguments j
 	extraDataStored := []string{}
 
 	for key, value := range args.Data {
+		// Skip nil values - don't store them at all
+		// This prevents storing literal "null" strings that pass validation
+		if value == nil {
+			continue
+		}
+
 		// Check if this key matches a required field exactly
 		isRequired := false
 		for _, field := range requiredFields {

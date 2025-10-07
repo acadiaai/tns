@@ -192,7 +192,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onEdit })
         {/* Role indicator with edit button */}
         <div className="flex items-center justify-between mb-2">
           <div className={`text-xs font-medium ${isCoach ? 'text-white/70' : 'text-blue-200'}`}>
-            {isCoach ? 'Brainspotting Coach' : 'You'}
+            {isCoach ? 'Brainspotting Therapist' : 'You'}
           </div>
           
           {/* Edit button for user messages (ChatGPT style) */}

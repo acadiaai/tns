@@ -300,7 +300,8 @@ type SessionPhaseState struct {
 	MinimumTurnsMet       bool       `json:"minimum_turns_met" gorm:"default:false"`
 	CanTransition         bool       `json:"can_transition" gorm:"default:false"`
 	LastMessageTime       time.Time  `json:"last_message_time"`
-	WaitStartedAt         *time.Time `json:"wait_started_at,omitempty"` // For timed_waiting phases
+	WaitStartedAt         *time.Time `json:"wait_started_at,omitempty"`   // For timed_waiting phases: when wait started
+	WaitCompletedAt       *time.Time `json:"wait_completed_at,omitempty"` // For timed_waiting phases: when wait completed
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
 

@@ -191,14 +191,8 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	authToken := r.URL.Query().Get("token")
 	if authToken != "" {
 		authToken = "Bearer " + authToken
-		logger.AppLogger.WithField("session_id", sessionID).Info("[AUTH_DEBUG] Token received from query param")
 	} else {
 		authToken = r.Header.Get("Authorization")
-		if authToken != "" {
-			logger.AppLogger.WithField("session_id", sessionID).Info("[AUTH_DEBUG] Token received from header")
-		} else {
-			logger.AppLogger.WithField("session_id", sessionID).Warn("[AUTH_DEBUG] No auth token received")
-		}
 	}
 
 	// Verify session exists
@@ -325,6 +319,20 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Get wait state for timed_waiting phases
+		var phaseState repository.SessionPhaseState
+		var waitState map[string]interface{}
+		if err := repository.DB.Where("session_id = ? AND phase_id = ?", sessionID, session.Phase).
+			First(&phaseState).Error; err == nil {
+			// Phase state exists
+			waitState = map[string]interface{}{
+				"wait_started_at":   phaseState.WaitStartedAt,
+				"wait_completed_at": phaseState.WaitCompletedAt,
+				"is_waiting":        phaseState.WaitStartedAt != nil && phaseState.WaitCompletedAt == nil,
+				"is_completed":      phaseState.WaitCompletedAt != nil,
+			}
+		}
+
 		// Send initial state - clean structure
 		broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
 			Type:                 "initial_state",
@@ -333,6 +341,7 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 			PhaseDataValues:      phaseDataValues,
 			Phases:               sharedPhases,
 			RecentMessages:       convertMessages(messages),
+			Metadata:             waitState,
 			Timestamp:            time.Now(),
 		})
 
@@ -360,31 +369,29 @@ func SessionWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	// Generate initial greeting via Conductor (unified approach)
 	var messageCount int64
 	repository.DB.Model(&repository.Message{}).Where("session_id = ?", sessionID).Count(&messageCount)
-	logger.AppLogger.WithFields(map[string]interface{}{
-		"session_id":    sessionID,
-		"message_count": messageCount,
-	}).Info("[GREETING_DEBUG] Checking if initial greeting needed")
-	
-	// Use activeConversations to prevent duplicate greeting generation
-	activeConvMutex.Lock()
-	// If this is a brand new session (no messages), clear any old greeting flag
-	if messageCount == 0 {
-		delete(activeConversations, sessionID+"_greeting")
-	}
-	greetingAlreadyTriggered := activeConversations[sessionID+"_greeting"]
-	if messageCount == 0 && !greetingAlreadyTriggered {
-		activeConversations[sessionID+"_greeting"] = true
-		activeConvMutex.Unlock()
 
-		logger.AppLogger.WithField("session_id", sessionID).Info("[GREETING_DEBUG] No real messages found and no greeting triggered yet, starting initial greeting generation")
+	// Check for existing coach messages to prevent duplicates (database-based, no race condition)
+	var coachMessageCount int64
+	repository.DB.Model(&repository.Message{}).
+		Where("session_id = ? AND role = ?", sessionID, "coach").
+		Count(&coachMessageCount)
+
+	logger.AppLogger.WithFields(map[string]interface{}{
+		"session_id":          sessionID,
+		"message_count":       messageCount,
+		"coach_message_count": coachMessageCount,
+	}).Info("[GREETING_DEBUG] Checking if initial greeting needed")
+
+	// Only generate greeting if there are NO coach messages in the database
+	if coachMessageCount == 0 {
+		logger.AppLogger.WithField("session_id", sessionID).Info("[GREETING_DEBUG] No coach messages found, starting initial greeting generation")
 		go generateInitialGreeting(sessionID)
 	} else {
-		activeConvMutex.Unlock()
 		logger.AppLogger.WithFields(map[string]interface{}{
-			"session_id":         sessionID,
-			"message_count":      messageCount,
-			"greeting_triggered": greetingAlreadyTriggered,
-		}).Info("[GREETING_DEBUG] Skipping initial greeting - already exists or triggered")
+			"session_id":          sessionID,
+			"message_count":       messageCount,
+			"coach_message_count": coachMessageCount,
+		}).Info("[GREETING_DEBUG] Skipping initial greeting - coach messages already exist")
 	}
 
 	// Track last activity
@@ -732,11 +739,18 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 			return
 		}
 
-		// Set wait_started_at timestamp
+		// Set wait_started_at timestamp - create record if it doesn't exist
 		now := time.Now()
-		if err := repository.DB.Model(&repository.SessionPhaseState{}).
-			Where("session_id = ? AND phase_id = ?", sessionID, session.Phase).
-			Update("wait_started_at", now).Error; err != nil {
+		phaseState := repository.SessionPhaseState{
+			SessionID:     sessionID,
+			PhaseID:       session.Phase,
+			WaitStartedAt: &now,
+		}
+
+		// FirstOrCreate will find existing or create new record, then update it
+		if err := repository.DB.Where("session_id = ? AND phase_id = ?", sessionID, session.Phase).
+			Assign(repository.SessionPhaseState{WaitStartedAt: &now}).
+			FirstOrCreate(&phaseState).Error; err != nil {
 			logger.AppLogger.WithError(err).Error("Failed to set wait_started_at")
 			return
 		}
@@ -750,6 +764,10 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 	}
 
 	if wsMessage.Type == "end_wait" {
+		logger.AppLogger.WithFields(map[string]interface{}{
+			"session_id": sessionID,
+		}).Info("🎯 Received end_wait message from frontend")
+
 		// User closed fullscreen or timer completed
 		var session repository.Session
 		if err := repository.DB.First(&session, "id = ?", sessionID).Error; err != nil {
@@ -787,16 +805,90 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 			}
 			repository.DB.Create(&fieldValue)
 
-			// Clear wait_started_at
-			repository.DB.Model(&repository.SessionPhaseState{}).
-				Where("session_id = ? AND phase_id = ?", sessionID, session.Phase).
-				Update("wait_started_at", nil)
-
 			logger.AppLogger.WithFields(map[string]interface{}{
 				"session_id":         sessionID,
 				"phase":              session.Phase,
 				"processing_minutes": processingMinutes,
 			}).Info("Completed timed waiting period")
+
+			// FIRST: Mark wait as completed and show completion bubble
+			completedAt := time.Now()
+			repository.DB.Model(&repository.SessionPhaseState{}).
+				Where("session_id = ? AND phase_id = ?", sessionID, session.Phase).
+				Update("wait_completed_at", completedAt)
+
+			// Broadcast wait_completed event to frontend - SHOWS COMPLETION BUBBLE FIRST
+			broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
+				Type:      "wait_completed",
+				Timestamp: time.Now(),
+				Metadata: map[string]interface{}{
+					"phase":              session.Phase,
+					"processing_minutes": processingMinutes,
+					"elapsed_seconds":    int(duration.Seconds()),
+				},
+			})
+
+			// SECOND: Generate coach post-wait response while wait_started_at is still set
+			// This allows context builder to detect post_wait state and load correct prompts
+			// Post-wait message will appear AFTER the completion bubble
+			if Services.GeminiService != nil {
+				logger.AppLogger.WithFields(map[string]interface{}{
+					"session_id": sessionID,
+					"phase":      session.Phase,
+				}).Info("Attempting to generate post-wait coach response")
+
+				coachService := services.NewCoachService(Services.GeminiService)
+				coachResponse, err := coachService.GenerateResponse(ctx, sessionID, "", session.Phase)
+
+				if err != nil {
+					logger.AppLogger.WithError(err).WithFields(map[string]interface{}{
+						"session_id": sessionID,
+						"phase":      session.Phase,
+					}).Error("Failed to generate post-wait coach response")
+				} else if strings.TrimSpace(coachResponse.Message) == "" {
+					logger.AppLogger.WithFields(map[string]interface{}{
+						"session_id": sessionID,
+						"phase":      session.Phase,
+					}).Warn("Post-wait coach response was empty")
+				} else {
+					// Save and broadcast coach's post-wait response
+					therapistMsg := &repository.Message{
+						ID:        fmt.Sprintf("msg_%d", time.Now().UnixNano()),
+						SessionID: sessionID,
+						Role:      "coach",
+						Content:   strings.TrimSpace(coachResponse.Message),
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					}
+					if err := repository.DB.Create(therapistMsg).Error; err != nil {
+						logger.AppLogger.WithError(err).Error("Failed to save post-wait coach message to database")
+					} else {
+						broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
+							Type:      "message",
+							Message:   convertMessage(therapistMsg),
+							Timestamp: time.Now(),
+						})
+						logger.AppLogger.WithFields(map[string]interface{}{
+							"session_id":     sessionID,
+							"message_length": len(coachResponse.Message),
+						}).Info("Post-wait coach response sent successfully")
+					}
+				}
+			} else {
+				logger.AppLogger.WithField("session_id", sessionID).Error("GeminiService is nil, cannot generate post-wait coach response")
+			}
+
+			// FINALLY: Clear wait_started_at so subsequent messages use normal phase prompts
+			// This prevents getting stuck in post_wait state for all future messages
+			phaseState.WaitStartedAt = nil
+			if err := repository.DB.Save(&phaseState).Error; err != nil {
+				logger.AppLogger.WithError(err).Error("Failed to clear wait_started_at after post-wait response")
+			} else {
+				logger.AppLogger.WithField("session_id", sessionID).Info("Cleared wait_started_at timestamp after post-wait response")
+			}
+
+			// Auto-transition will happen via normal data collection flow
+			// The ready_to_move_on data requirement triggers phase transition
 		}
 
 		return
@@ -1029,8 +1121,87 @@ func handlePatientMessage(sessionID string, messageData []byte, authToken string
 		})
 
 		logger.AppLogger.WithField("session_id", sessionID).Info("[MESSAGE_DEBUG] Conversation message created and broadcast")
+
+		// Extract data from this conversation turn asynchronously
+		go func(userMsg, coachMsg, phase string) {
+			dataExtractor := services.NewDataExtractor(Services.GeminiService)
+			extracted, err := dataExtractor.ExtractDataFromTurn(
+				ctx,
+				sessionID,
+				userMsg,
+				coachMsg,
+				phase,
+			)
+
+			if err != nil {
+				logger.AppLogger.WithError(err).WithField("session_id", sessionID).Error("[EXTRACTOR] Data extraction failed")
+				return
+			}
+
+			if len(extracted) > 0 {
+				logger.AppLogger.WithFields(map[string]interface{}{
+					"session_id": sessionID,
+					"extracted": extracted,
+				}).Info("[EXTRACTOR] Data extracted, calling collect_structured_data tool")
+
+				// Call MCP tool to collect the data
+				mcpClient := getWSMCPClient(authToken)
+				if mcpClient != nil {
+					argsMap := map[string]interface{}{
+						"session_id": sessionID,
+						"data":       extracted,
+					}
+					argsJSON, _ := json.Marshal(argsMap)
+					_, toolErr := mcpClient.ToolsCall(ctx, "collect_structured_data", argsJSON)
+					if toolErr != nil {
+						logger.AppLogger.WithError(toolErr).Error("[EXTRACTOR] Failed to call collect_structured_data tool")
+					} else {
+						logger.AppLogger.WithField("session_id", sessionID).Info("[EXTRACTOR] Successfully called collect_structured_data tool")
+					}
+				}
+			} else {
+				logger.AppLogger.WithField("session_id", sessionID).Debug("[EXTRACTOR] No data extracted from turn")
+			}
+		}(wsMessage.Content, responseText, currentPhase)
 	} else {
 		logger.AppLogger.WithField("session_id", sessionID).Info("[MESSAGE_DEBUG] No response text, skipping conversation message")
+
+		// If tool calls exist, generate immediate coach response (don't leave user hanging)
+		if len(coachResponse.ToolCalls) > 0 {
+			logger.AppLogger.WithFields(map[string]interface{}{
+				"session_id":    sessionID,
+				"current_phase": currentPhase,
+			}).Info("🔄 Tool called but no text - generating immediate coach response")
+
+			// Generate response with empty user message (same pattern as transition messages)
+			immediateResponse, err := coachService.GenerateResponse(ctx, sessionID, "", currentPhase)
+
+			if err != nil {
+				logger.AppLogger.WithError(err).Error("❌ Failed to generate immediate coach response")
+			} else if immediateResponse != nil && strings.TrimSpace(immediateResponse.Message) != "" {
+				// Save and broadcast coach message
+				coachMsg := &repository.Message{
+					ID:        fmt.Sprintf("msg_%d", time.Now().UnixNano()),
+					SessionID: sessionID,
+					Role:      "coach",
+					Content:   strings.TrimSpace(immediateResponse.Message),
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				}
+
+				if err := repository.DB.Create(coachMsg).Error; err != nil {
+					logger.AppLogger.WithError(err).Error("Failed to save immediate coach message")
+				} else {
+					broadcastSessionUpdate(sessionID, shared.TherapySessionUpdate{
+						Type:      "message",
+						Message:   convertMessage(coachMsg),
+						Timestamp: time.Now(),
+					})
+
+					logger.AppLogger.WithField("session_id", sessionID).Info("✅ Immediate coach response sent after tool call")
+				}
+			}
+		}
 	}
 
 	// Create initial "executing" tool call messages and execute async
@@ -1284,12 +1455,15 @@ func broadcastSessionUpdate(sessionID string, update shared.TherapySessionUpdate
 	totalConnections := len(sessionConnections)
 	sessionConnMutex.RUnlock()
 
-	logger.AppLogger.WithFields(map[string]interface{}{
-		"session_id":         sessionID,
-		"update_type":        update.Type,
-		"connection_exists":  exists,
-		"total_connections": totalConnections,
-	}).Info("Broadcasting session update")
+	// Only log non-timer updates to reduce noise
+	if update.Type != "timer_update" {
+		logger.AppLogger.WithFields(map[string]interface{}{
+			"session_id":         sessionID,
+			"update_type":        update.Type,
+			"connection_exists":  exists,
+			"total_connections": totalConnections,
+		}).Info("Broadcasting session update")
+	}
 
 	// Log WebSocket message content to dedicated file
 	wsLogEntry := map[string]interface{}{
@@ -1311,9 +1485,12 @@ func broadcastSessionUpdate(sessionID string, update shared.TherapySessionUpdate
 		return
 	}
 
-	logger.AppLogger.WithFields(map[string]interface{}{
-		"session_id":  sessionID,
-		"update_type": update.Type,
-	}).Info("Successfully sent WebSocket update")
+	// Only log non-timer updates to reduce noise
+	if update.Type != "timer_update" {
+		logger.AppLogger.WithFields(map[string]interface{}{
+			"session_id":  sessionID,
+			"update_type": update.Type,
+		}).Info("Successfully sent WebSocket update")
+	}
 }
 

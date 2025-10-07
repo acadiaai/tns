@@ -146,23 +146,18 @@ func (m *Machine) GetPhaseGuidance(currentPhase string) (string, error) {
 
 	if len(missingFields) == 0 && turnsOK {
 		guidance.WriteString("✅ ALL REQUIREMENTS MET - Ready to transition!\n")
-		guidance.WriteString("ACTION REQUIRED: The client has explicitly indicated readiness to proceed. You MUST call collect_structured_data NOW (with empty data: {}) to trigger the phase transition. Do not ask more questions.\n")
+		guidance.WriteString("Continue the conversation naturally. The phase transition will happen automatically.\n")
 	} else {
 		guidance.WriteString("⚠️ TRANSITION REQUIREMENTS:\n\n")
 
-		// Show data requirements with specific guidance
+		// Show data requirements
 		if len(missingFields) > 0 {
-			guidance.WriteString("❌ DATA REQUIREMENTS:\n")
+			guidance.WriteString("❌ DATA REQUIREMENTS (missing):\n")
 			for _, field := range missingFields {
 				guidance.WriteString(fmt.Sprintf("- %s: %s\n",
 					field.Name, field.Description))
 			}
-			guidance.WriteString("\n🔧 CRITICAL INSTRUCTIONS FOR DATA COLLECTION:\n")
-			guidance.WriteString("- The patient may provide required data at ANY point in the conversation, not just when directly asked\n")
-			guidance.WriteString("- When you receive ANY required data (whether asked for or volunteered), IMMEDIATELY call collect_structured_data\n")
-			guidance.WriteString("- You can collect multiple fields in ONE tool call: {\"selected_issue\": \"...\", \"issue_intensity\": 8}\n")
-			guidance.WriteString("- ALWAYS provide conversational text along with tool calls\n")
-			guidance.WriteString("- If patient provides multiple data points in one message, collect them ALL in that turn\n\n")
+			guidance.WriteString("\n")
 		} else {
 			guidance.WriteString("✅ DATA REQUIREMENTS: Complete\n\n")
 		}
@@ -178,7 +173,7 @@ func (m *Machine) GetPhaseGuidance(currentPhase string) (string, error) {
 				guidance.WriteString("- All required data has been collected\n")
 				guidance.WriteString("- Continue natural conversation to meet minimum turn requirement\n")
 				guidance.WriteString("- DO NOT re-ask for data already collected\n")
-				guidance.WriteString("- When minimum turns are met, call collect_structured_data with empty data: {} to transition\n\n")
+				guidance.WriteString("- Phase will transition automatically when minimum turns are met\n\n")
 			} else {
 				guidance.WriteString("\n")
 			}

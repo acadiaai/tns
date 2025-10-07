@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"therapy-navigation-system/internal/config"
 	"therapy-navigation-system/internal/logger"
 	"therapy-navigation-system/internal/repository"
@@ -95,17 +97,59 @@ func InitializeServices(cfg *config.Config) error {
 					}).Info("✅ Phase transition completed, AI will continue in new phase on next user message")
 				}
 
-				// REMOVED: Auto-generated coach message when data complete but minimum turns not met
-				// This was causing double responses - AI already responded naturally to user's message,
-				// then system forced a second "continuation" message.
-				// The AI will naturally continue conversation when user sends next message.
+				// Generate coach message when data complete but minimum turns not met
 				if typ == "data_collected_continue_conversation" {
-					// Just log, don't generate additional AI response
+					triggerCoach, _ := ev["trigger_coach_message"].(bool)
 					currentPhase, _ := ev["current_phase"].(string)
-					logger.AppLogger.WithFields(logrus.Fields{
-						"session_id":    sid,
-						"current_phase": currentPhase,
-					}).Info("✅ Data collected, waiting for minimum turns - AI will continue naturally on next user message")
+
+					if triggerCoach && Services.GeminiService != nil && currentPhase != "" {
+						logger.AppLogger.WithFields(logrus.Fields{
+							"session_id":    sid,
+							"current_phase": currentPhase,
+						}).Info("🔄 Data collected but transition blocked - generating coach message to continue conversation")
+
+						coachService := services.NewCoachService(Services.GeminiService)
+						ctx := context.Background()
+
+						// Generate response to continue conversation (synthetic message to trigger text response)
+						response, err := coachService.GenerateResponse(ctx, sid, "[SYSTEM: Continue the conversation naturally with the user. Do not call tools.]", currentPhase)
+
+						if err != nil {
+							logger.AppLogger.WithError(err).Error("❌ Failed to generate coach continuation message")
+						} else if response != nil && len(response.ToolCalls) > 0 && strings.TrimSpace(response.Message) == "" {
+							// AI returned tool calls but no text - generate immediate follow-up
+							logger.AppLogger.Info("🔄 Empty response with tool calls in-phase - retrying once")
+							response, err = coachService.GenerateResponse(ctx, sid, "[SYSTEM: Continue the conversation naturally with the user. Do not call tools.]", currentPhase)
+						}
+
+						if err == nil && response != nil && strings.TrimSpace(response.Message) != "" {
+							// Save coach message to database
+							coachMsg := &repository.Message{
+								ID:        fmt.Sprintf("msg_%d", time.Now().UnixNano()),
+								SessionID: sid,
+								Role:      "coach",
+								Content:   strings.TrimSpace(response.Message),
+								CreatedAt: time.Now(),
+								UpdatedAt: time.Now(),
+							}
+
+							if err := repository.DB.Create(coachMsg).Error; err != nil {
+								logger.AppLogger.WithError(err).Error("Failed to save coach continuation message")
+							} else {
+								// Broadcast coach message to frontend
+								broadcastSessionUpdate(sid, shared.TherapySessionUpdate{
+									Type:      "message",
+									Message:   convertMessage(coachMsg),
+									Timestamp: time.Now(),
+								})
+
+								logger.AppLogger.WithFields(logrus.Fields{
+									"session_id":    sid,
+									"current_phase": currentPhase,
+								}).Info("✅ Coach continuation message sent successfully")
+							}
+						}
+					}
 				}
 			} else {
 				logger.AppLogger.WithField("event", ev).Debug("MCP event (no session routing)")

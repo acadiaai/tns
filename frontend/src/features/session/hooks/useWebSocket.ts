@@ -27,6 +27,9 @@ export const useWebSocket = (sessionId: string): WebSocketHook => {
       return;
     }
 
+    // Set connecting flag IMMEDIATELY to prevent race condition
+    isConnectingRef.current = true;
+
     let wsUrl = getWebSocketUrl(`/api/sessions/${sessionId}/ws`);
 
     // Get auth token and append as query parameter
@@ -38,12 +41,12 @@ export const useWebSocket = (sessionId: string): WebSocketHook => {
         wsUrl = `${wsUrl}${separator}token=${encodeURIComponent(token)}`;
       } catch (error) {
         console.error('Failed to get auth token for WebSocket:', error);
+        isConnectingRef.current = false;
+        return;
       }
     }
 
     // console.log('Connecting to WebSocket:', wsUrl.replace(/token=.*/, 'token=***'));
-
-    isConnectingRef.current = true;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 

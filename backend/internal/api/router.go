@@ -2,14 +2,57 @@ package api
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"net/http"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 )
+
+// sanitizedLogger is a custom logger that redacts tokens from logs
+func sanitizedLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+		defer func() {
+			// Skip logging WebSocket 404s (these are normal during connection retry)
+			if strings.Contains(r.RequestURI, "/ws") && ww.Status() == 404 {
+				return
+			}
+
+			// Redact token from query string
+			sanitizedURI := r.RequestURI
+			tokenRegex := regexp.MustCompile(`(token=)[^&\s]+`)
+			sanitizedURI = tokenRegex.ReplaceAllString(sanitizedURI, "${1}[REDACTED]")
+
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+
+			fmt.Printf("%s \"%s %s://%s%s %s\" from %s - %d %dB in %s\n",
+				time.Now().Format("2006/01/02 15:04:05"),
+				r.Method,
+				scheme,
+				r.Host,
+				sanitizedURI,
+				r.Proto,
+				r.RemoteAddr,
+				ww.Status(),
+				ww.BytesWritten(),
+				time.Since(start),
+			)
+		}()
+
+		next.ServeHTTP(ww, r)
+	})
+}
 
 // Embed the frontend build files
 //
@@ -30,7 +73,7 @@ func NewRouter() *chi.Mux {
 	}))
 
 	// Standard middleware
-	r.Use(middleware.Logger)
+	r.Use(sanitizedLogger) // Custom logger that redacts tokens
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)

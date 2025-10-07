@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Plus, ChevronRight, Search, Brain, Settings, MessageSquare, Home, Stethoscope, PlayCircle, GitBranch } from 'lucide-react';
+import { Users, Plus, ChevronRight, Search, Brain, Settings, MessageSquare, Home, Stethoscope, PlayCircle, GitBranch, Shield } from 'lucide-react';
 import { SessionsManagement } from './SessionsManagement';
 // import { PatientsService, type api_CreatePatientRequest } from '../api/generated';
 import { NoDataEmptyState } from './EmptyStates';
 import { SessionDashboard } from '../features/session/SessionDashboard';
 import { WorkflowStudio } from './WorkflowStudio';
+import { PrimeDirective } from './PrimeDirective';
 import UserAvatar from './UserAvatar';
 import { apiUrl } from '../config/api';
 import { fetchWithAuth } from '../utils/auth-interceptor';
@@ -38,7 +39,8 @@ const VIEW_STATES = {
   THERAPISTS: 'therapists',
   SESSIONS: 'sessions',
   CHAT_SESSION: 'chat-session',
-  WORKFLOW_STUDIO: 'workflow-studio'
+  WORKFLOW_STUDIO: 'workflow-studio',
+  PRIME_DIRECTIVE: 'prime-directive'
 } as const;
 
 type ViewState = typeof VIEW_STATES[keyof typeof VIEW_STATES];
@@ -51,6 +53,7 @@ const getViewTitle = (viewState: ViewState): string => {
     case VIEW_STATES.SESSIONS: return 'Sessions';
     case VIEW_STATES.CHAT_SESSION: return '';
     case VIEW_STATES.WORKFLOW_STUDIO: return 'Workflow Studio';
+    case VIEW_STATES.PRIME_DIRECTIVE: return 'Prime Directive';
     default: return '';
   }
 };
@@ -105,6 +108,8 @@ export const TherapyNavigationSystem: React.FC = () => {
       newViewState = VIEW_STATES.CHAT_SESSION;
     } else if (path === '/workflow-studio') {
       newViewState = VIEW_STATES.WORKFLOW_STUDIO;
+    } else if (path === '/prime-directive') {
+      newViewState = VIEW_STATES.PRIME_DIRECTIVE;
     } else {
       console.log('❌ Unknown path:', path);
       return;
@@ -152,6 +157,10 @@ export const TherapyNavigationSystem: React.FC = () => {
       case VIEW_STATES.WORKFLOW_STUDIO:
         console.log('📍 Navigating to /workflow-studio');
         navigate('/workflow-studio');
+        break;
+      case VIEW_STATES.PRIME_DIRECTIVE:
+        console.log('📍 Navigating to /prime-directive');
+        navigate('/prime-directive');
         break;
     }
   };
@@ -353,12 +362,19 @@ export const TherapyNavigationSystem: React.FC = () => {
             
             {/* Divider */}
             <div className="my-4 border-t border-white/[0.05]" />
-            
+
             <SidebarButton
               icon={GitBranch}
               label="Workflow Studio"
               isActive={viewState === VIEW_STATES.WORKFLOW_STUDIO}
               onClick={() => navigateToView('workflow-studio')}
+            />
+
+            <SidebarButton
+              icon={Shield}
+              label="Prime Directive"
+              isActive={viewState === VIEW_STATES.PRIME_DIRECTIVE}
+              onClick={() => navigateToView('prime-directive')}
             />
           </div>
 
@@ -807,6 +823,19 @@ export const TherapyNavigationSystem: React.FC = () => {
               className="h-full overflow-auto"
             >
               <WorkflowStudio />
+            </motion.div>
+          )}
+
+          {/* Prime Directive View */}
+          {viewState === VIEW_STATES.PRIME_DIRECTIVE && (
+            <motion.div
+              key="prime-directive"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full overflow-auto"
+            >
+              <PrimeDirective />
             </motion.div>
           )}
 

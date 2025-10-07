@@ -13,7 +13,8 @@ interface ChatPanelProps {
   isCompleted?: boolean;
   timedWaitingPhase?: any;
   onBeginTimedWaiting?: () => void;
-  hasShownTimedPrompt?: boolean;
+  timedWaitingStatus?: 'not_started' | 'in_progress' | 'completed';
+  timedWaitingElapsed?: number;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -25,7 +26,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   isCompleted = false,
   timedWaitingPhase,
   onBeginTimedWaiting,
-  hasShownTimedPrompt = false
+  timedWaitingStatus = 'not_started',
+  timedWaitingElapsed = 0
 }) => {
   return (
     <div className={`flex flex-col h-full ${className}`}>
@@ -39,7 +41,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         className="flex-1"
         timedWaitingPhase={timedWaitingPhase}
         onBeginTimedWaiting={onBeginTimedWaiting}
-        hasShownTimedPrompt={hasShownTimedPrompt}
+        timedWaitingStatus={timedWaitingStatus}
+        timedWaitingElapsed={timedWaitingElapsed}
       />
       
       {/* Input Area */}

@@ -37,9 +37,8 @@ func RunMigrations(db *gorm.DB) error {
 		{ID: "002", Name: "brainspotting_phases", Func: migrate002Phases},
 		{ID: "003", Name: "phase_transitions", Func: migrate003PhaseTransitions},
 		{ID: "004", Name: "phase_data_requirements", Func: migrate004PhaseData},
-		// NOTE: migrations 005 and 006 for dynamic MCP tools were removed - simplified MCP layer
-		{ID: "007", Name: "therapy_prompts", Func: migrate007Prompts},
-		{ID: "008", Name: "phase_types", Func: migrate008PhaseTypes},
+		{ID: "005", Name: "therapy_prompts", Func: migrate005Prompts},
+		{ID: "006", Name: "phase_types", Func: migrate006PhaseTypes},
 	}
 
 	// Run each migration if not already applied

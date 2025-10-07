@@ -138,17 +138,7 @@ func main() {
 	// Start server in a goroutine
 	go func() {
 		logger.AppLogger.Info("🌟 Server starting on http://localhost:" + port)
-		logger.AppLogger.Info("📋 API endpoints:")
-		logger.AppLogger.Info("  - GET  /health")
-		logger.AppLogger.Info("  - GET  /api/therapists")
-		logger.AppLogger.Info("  - POST /api/therapists")
-		logger.AppLogger.Info("  - GET  /api/clients")
-		logger.AppLogger.Info("  - POST /api/clients")
-		logger.AppLogger.Info("  - GET  /api/intakes")
-		logger.AppLogger.Info("  - POST /api/intakes")
-		logger.AppLogger.Info("  - GET  /api/sessions")
-		logger.AppLogger.Info("  - POST /api/sessions")
-		
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.AppLogger.WithError(err).Fatal("Server failed to start")
 		}

@@ -1,12 +1,16 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"therapy-navigation-system/internal/logger"
 	"therapy-navigation-system/internal/repository"
+	"therapy-navigation-system/internal/services"
 	"therapy-navigation-system/shared"
 
 	"github.com/go-chi/chi/v5"
@@ -145,9 +149,46 @@ func TransitionPhaseHandler(w http.ResponseWriter, r *http.Request) {
 			"session_id": session.ID,
 			"phase_id":   targetPhase.ID,
 			"wait_duration": targetPhase.WaitDurationSeconds,
-		}).Info("Entering timed waiting phase - starting countdown")
+		}).Info("Entering timed waiting phase - generating pre-wait message")
 
-		// Send pre-wait message
+		// Generate pre-wait coach message BEFORE showing the begin button
+		if Services.GeminiService != nil {
+			logger.AppLogger.WithFields(map[string]interface{}{
+				"session_id": session.ID,
+				"phase":      targetPhase.ID,
+			}).Info("Generating pre-wait coach message")
+
+			coachService := services.NewCoachService(Services.GeminiService)
+			coachResponse, err := coachService.GenerateResponse(context.Background(), session.ID, "", targetPhase.ID)
+
+			if err != nil {
+				logger.AppLogger.WithError(err).Error("Failed to generate pre-wait coach message")
+			} else if strings.TrimSpace(coachResponse.Message) == "" {
+				logger.AppLogger.Warn("Pre-wait coach message was empty")
+			} else {
+				// Save and broadcast pre-wait message
+				therapistMsg := &repository.Message{
+					ID:        fmt.Sprintf("msg_%d", time.Now().UnixNano()),
+					SessionID: session.ID,
+					Role:      "coach",
+					Content:   strings.TrimSpace(coachResponse.Message),
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				}
+				if err := repository.DB.Create(therapistMsg).Error; err != nil {
+					logger.AppLogger.WithError(err).Error("Failed to save pre-wait coach message")
+				} else {
+					broadcastSessionUpdate(session.ID, shared.TherapySessionUpdate{
+						Type:      "message",
+						Message:   convertMessage(therapistMsg),
+						Timestamp: time.Now(),
+					})
+					logger.AppLogger.WithField("session_id", session.ID).Info("Pre-wait coach message sent successfully")
+				}
+			}
+		}
+
+		// THEN send waiting_phase_started event to show the begin button
 		if targetPhase.PreWaitMessage != "" {
 			broadcastSessionUpdate(session.ID, shared.TherapySessionUpdate{
 				Type:      "waiting_phase_started",
@@ -177,6 +218,12 @@ func TransitionPhaseHandler(w http.ResponseWriter, r *http.Request) {
 		// Stop the timer
 		stopSessionTimer(session.ID)
 		logger.AppLogger.WithField("session_id", session.ID).Info("Stopping session timer")
+	}
+
+	// Small delay to ensure pre-wait message is processed before phase_transition event
+	// This prevents race condition where bubble shows before pre-wait message
+	if targetPhase.Type == "timed_waiting" {
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	// Broadcast the update via WebSocket

@@ -4,8 +4,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// migrate008PhaseTypes adds phase type fields for timed waiting periods
-func migrate008PhaseTypes(db *gorm.DB) error {
+// migrate006PhaseTypes adds phase type fields for timed waiting periods
+func migrate006PhaseTypes(db *gorm.DB) error {
 	// Add new columns to phases table
 	if err := db.Exec(`
 		ALTER TABLE phases ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'conversational';
@@ -66,6 +66,13 @@ func migrate008PhaseTypes(db *gorm.DB) error {
 		WHERE name = 'integration';
 	`).Error; err != nil {
 		// Phase might not exist, that's ok
+		_ = err
+	}
+
+	// Add wait_completed_at column to session_phase_states for tracking timed wait completion
+	if err := db.Exec(`
+		ALTER TABLE session_phase_states ADD COLUMN IF NOT EXISTS wait_completed_at TIMESTAMP NULL;
+	`).Error; err != nil {
 		_ = err
 	}
 

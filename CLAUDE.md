@@ -99,6 +99,45 @@ The system is ready when air rebuilds with fresh migrations!
 - Backend API on port 8083 (HTTP + WebSocket)
 - Use Playwright for end-to-end testing
 
+## E2E Testing Guidelines
+
+### Realistic Patient Dialogue
+When testing with Playwright MCP, always use realistic patient responses from `backend/test-scripts/baseline-session.md`.
+
+**DO:**
+- Use casual, natural language ("maybe like an 8")
+- Let AI guide the process phase by phase
+- Provide data ONLY when AI asks for it
+- Simulate real patient pacing and responses
+- Describe eye positions directionally ("left and up") not as coordinates
+
+**DON'T:**
+- Volunteer future-phase technical data ("position -0.3 horizontal, 0.2 vertical")
+- Provide all data in one message
+- Use synthetic/unrealistic responses that a real patient would never say
+- Rush through phases
+- Give exact coordinates before AI guides eye position finding
+
+### Regression Testing Process
+1. Move database aside: `mv backend/therapy.db backend/therapy_aside_$(date +%Y%m%d_%H%M%S).db`
+2. Restart backend: `Ctrl-c` in air window, then `air`
+3. Run baseline script from `backend/test-scripts/baseline-session.md`
+4. Verify no tool announcements appear in AI responses
+5. Verify phases transition correctly
+6. Verify data collected matches realistic script
+
+### Why This Matters
+Unrealistic test data (like patients saying "position -0.3, 0.2") creates false bugs that don't exist in real therapy sessions. A real patient would never volunteer eye position coordinates - the therapist guides them to find the spot directionally.
+
+Always test with realistic dialogue to ensure we're fixing real bugs, not chasing synthetic edge cases.
+
+### Critical Test Cases
+1. **Tool Announcement Bug**: AI must NEVER say "I'm going to collect/gather/record that information"
+2. **Same-Phase Transition**: Backend must reject transitions to the same phase
+3. **Auto-Transition**: Phases must auto-transition when all requirements met
+4. **Casual Language**: AI must recognize "maybe like an 8" as intensity: 8
+5. **Working Memory**: AI must not extract future-phase data from conversation history
+
 ## Current Status
 - ✅ Pre-session → Issue Decision: Working
 - ✅ Issue Decision → Information Gathering: Working

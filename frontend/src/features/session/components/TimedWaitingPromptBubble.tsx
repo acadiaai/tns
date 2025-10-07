@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Play } from 'lucide-react';
+import { Clock, Play, CheckCircle } from 'lucide-react';
 
 interface TimedWaitingPromptBubbleProps {
   phaseName: string;
-  message: string;
   durationSeconds: number;
   visualizationType?: string;
   onBegin: () => void;
+  status?: 'not_started' | 'in_progress' | 'completed';
+  elapsedSeconds?: number;
 }
 
 export const TimedWaitingPromptBubble: React.FC<TimedWaitingPromptBubbleProps> = ({
   phaseName,
-  message,
   durationSeconds,
   onBegin,
+  status = 'not_started',
+  elapsedSeconds = 0,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -26,21 +28,44 @@ export const TimedWaitingPromptBubble: React.FC<TimedWaitingPromptBubbleProps> =
     return `${mins}m ${secs}s`;
   };
 
+  // Don't show bubble when timer is running (in fullscreen mode)
+  if (status === 'in_progress') {
+    return null;
+  }
+
+  const isCompleted = status === 'completed';
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-center my-4"
     >
-      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg overflow-hidden w-full max-w-[600px] transition-all duration-200">
+      <div className={`border rounded-lg overflow-hidden w-full max-w-[600px] transition-all duration-200 ${
+        isCompleted
+          ? 'bg-green-500/10 border-green-500/30'
+          : 'bg-purple-500/10 border-purple-500/30'
+      }`}>
         <div
-          className="flex items-center gap-2 px-4 py-3 cursor-pointer hover:bg-purple-500/20 transition-colors"
+          className={`flex items-center gap-2 px-4 py-3 cursor-pointer transition-colors ${
+            isCompleted
+              ? 'hover:bg-green-500/20'
+              : 'hover:bg-purple-500/20'
+          }`}
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          <Clock className="w-4 h-4 text-purple-400" />
+          {isCompleted ? (
+            <CheckCircle className="w-4 h-4 text-green-400" />
+          ) : (
+            <Clock className="w-4 h-4 text-purple-400" />
+          )}
           <span className="font-mono text-slate-300 text-sm">{phaseName}</span>
-          <span className="text-xs ml-auto text-purple-400">
-            {formatDuration(durationSeconds)}
+          <span className={`text-xs ml-auto ${isCompleted ? 'text-green-400' : 'text-purple-400'}`}>
+            {isCompleted ? (
+              <>Completed • {formatDuration(elapsedSeconds)}</>
+            ) : (
+              formatDuration(durationSeconds)
+            )}
           </span>
           <span className={`text-slate-400 text-xs ml-1 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
             ▼
@@ -57,22 +82,26 @@ export const TimedWaitingPromptBubble: React.FC<TimedWaitingPromptBubbleProps> =
           transition={{ duration: 0.3, ease: "easeInOut" }}
           className="overflow-hidden"
         >
-          <div className="px-4 pb-4 border-t border-purple-500/10">
-            {/* Message */}
-            <div className="mb-4 mt-3">
-              <div className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">
-                {message}
-              </div>
-            </div>
+          <div className={`px-4 pb-4 border-t ${
+            isCompleted ? 'border-green-500/10' : 'border-purple-500/10'
+          }`}>
+            {/* Begin Button - only show for not_started */}
+            {!isCompleted && (
+              <button
+                onClick={onBegin}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 mt-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg text-white font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                <Play className="w-4 h-4" />
+                Begin ({formatDuration(durationSeconds)})
+              </button>
+            )}
 
-            {/* Begin Button */}
-            <button
-              onClick={onBegin}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg text-white font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              <Play className="w-4 h-4" />
-              Begin ({formatDuration(durationSeconds)})
-            </button>
+            {/* Completion message */}
+            {isCompleted && (
+              <div className="mt-3 text-sm text-green-300/80">
+                Mindfulness period completed. Time spent: {formatDuration(elapsedSeconds)}
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

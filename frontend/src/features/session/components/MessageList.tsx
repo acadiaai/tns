@@ -9,7 +9,8 @@ interface MessageListProps {
   className?: string;
   timedWaitingPhase?: any;
   onBeginTimedWaiting?: () => void;
-  hasShownTimedPrompt?: boolean;
+  timedWaitingStatus?: 'not_started' | 'in_progress' | 'completed';
+  timedWaitingElapsed?: number;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
@@ -17,7 +18,8 @@ export const MessageList: React.FC<MessageListProps> = ({
   className = '',
   timedWaitingPhase,
   onBeginTimedWaiting,
-  hasShownTimedPrompt = false
+  timedWaitingStatus = 'not_started',
+  timedWaitingElapsed = 0
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -48,14 +50,15 @@ export const MessageList: React.FC<MessageListProps> = ({
         />
       ))}
 
-      {/* Show timed waiting prompt if we're in a timed waiting phase and haven't shown it yet */}
-      {timedWaitingPhase && !hasShownTimedPrompt && onBeginTimedWaiting && (
+      {/* Show timed waiting prompt bubble - always visible in timed_waiting phase */}
+      {timedWaitingPhase && onBeginTimedWaiting && (
         <TimedWaitingPromptBubble
           phaseName={timedWaitingPhase.display_name || 'Timed Phase'}
-          message={timedWaitingPhase.pre_wait_message || 'Ready to begin?'}
           durationSeconds={timedWaitingPhase.wait_duration_seconds || 60}
           visualizationType={timedWaitingPhase.visualization_type || 'flowing_lines'}
           onBegin={onBeginTimedWaiting}
+          status={timedWaitingStatus}
+          elapsedSeconds={timedWaitingElapsed}
         />
       )}
 

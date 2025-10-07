@@ -123,27 +123,25 @@ export const FullscreenWaiting: React.FC<FullscreenWaitingProps> = ({
           <X size={20} />
         </button>
 
-        {/* Timer Overlay */}
+        {/* Timer Overlay - Smaller and less prominent */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute bottom-12 left-1/2 transform -translate-x-1/2 z-10"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="absolute bottom-6 right-6 z-10"
         >
-          <div className="flex flex-col items-center space-y-4">
-            {/* Timer Display */}
-            <div className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl">
-              <div className="text-5xl font-light text-white/90 font-mono tracking-wider">
-                {formatTime(timeRemaining)}
-              </div>
+          <div className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-black/20 border border-white/5 backdrop-blur-sm">
+            {/* Timer Display - Much smaller */}
+            <div className="text-xl font-mono text-white/50">
+              {formatTime(timeRemaining)}
             </div>
 
-            {/* Pause Button */}
+            {/* Pause Button - Inline */}
             <button
               onClick={togglePause}
-              className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/60 hover:text-white transition-all backdrop-blur-xl"
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/60 transition-all"
               aria-label={isPaused ? "Resume" : "Pause"}
             >
-              {isPaused ? <Play size={18} /> : <Pause size={18} />}
+              {isPaused ? <Play size={14} /> : <Pause size={14} />}
             </button>
           </div>
         </motion.div>
@@ -154,54 +152,121 @@ export const FullscreenWaiting: React.FC<FullscreenWaitingProps> = ({
 
 // Visualization Components
 
-// Apple-style flowing lines - vivid, animated, calming with curved paths
+// Calm breathing orb with particle field - meditative visualization
 const FlowingLines: React.FC<{ isPaused: boolean }> = ({ isPaused }) => {
-  const lines = [
-    { color: 'from-pink-600 via-rose-500 to-orange-500', delay: 0, duration: 12, yPath: [15, 10, 20, 15] },
-    { color: 'from-blue-600 via-cyan-500 to-teal-500', delay: 1.5, duration: 14, yPath: [30, 35, 25, 30] },
-    { color: 'from-purple-600 via-violet-500 to-fuchsia-500', delay: 3, duration: 13, yPath: [45, 50, 40, 45] },
-    { color: 'from-green-600 via-emerald-500 to-lime-500', delay: 4.5, duration: 15, yPath: [60, 55, 65, 60] },
-    { color: 'from-yellow-500 via-amber-500 to-orange-500', delay: 6, duration: 11, yPath: [75, 80, 70, 75] },
-  ];
+  // Generate random particles
+  const particles = Array.from({ length: 40 }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    size: Math.random() * 3 + 1,
+    delay: Math.random() * 5,
+    duration: Math.random() * 10 + 15,
+  }));
 
   return (
-    <div className="absolute inset-0 bg-black overflow-hidden">
-      {lines.map((line, i) => (
+    <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-slate-950 to-black overflow-hidden">
+      {/* Floating particles */}
+      {particles.map((particle) => (
         <motion.div
-          key={i}
-          className={`absolute h-2 bg-gradient-to-r ${line.color} rounded-full blur-md`}
+          key={particle.id}
+          className="absolute rounded-full bg-white/20"
           style={{
-            width: '50%',
-            left: '-25%',
-            opacity: 0.9,
+            left: `${particle.x}%`,
+            top: `${particle.y}%`,
+            width: `${particle.size}px`,
+            height: `${particle.size}px`,
           }}
           animate={isPaused ? {} : {
-            x: ['0%', '350%'],
-            y: line.yPath.map(y => `${y}vh`),
-            scaleX: [1, 1.8, 1.2, 1.5, 1],
-            scaleY: [1, 1.3, 0.8, 1.2, 1],
-            opacity: [0, 0.95, 0.85, 0.9, 0],
+            y: [0, -30, 0],
+            opacity: [0.2, 0.6, 0.2],
           }}
           transition={{
-            duration: line.duration,
+            duration: particle.duration,
             repeat: Infinity,
-            delay: line.delay,
-            ease: "easeInOut"
+            delay: particle.delay,
+            ease: "easeInOut",
           }}
         />
       ))}
 
-      {/* Additional vivid ambient glow */}
+      {/* Central breathing orb */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        {/* Outer glow rings */}
+        <motion.div
+          className="absolute w-96 h-96 rounded-full bg-gradient-to-r from-violet-600/30 to-fuchsia-600/30 blur-3xl"
+          animate={isPaused ? {} : {
+            scale: [1, 1.3, 1],
+            opacity: [0.4, 0.7, 0.4],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+
+        <motion.div
+          className="absolute w-80 h-80 rounded-full bg-gradient-to-r from-purple-600/40 to-blue-600/40 blur-2xl"
+          animate={isPaused ? {} : {
+            scale: [1.1, 1.4, 1.1],
+            opacity: [0.5, 0.8, 0.5],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 0.5,
+          }}
+        />
+
+        {/* Core breathing orb */}
+        <motion.div
+          className="absolute w-64 h-64 rounded-full"
+          style={{
+            background: 'radial-gradient(circle at 30% 30%, rgba(168, 85, 247, 0.6), rgba(139, 92, 246, 0.5), rgba(124, 58, 237, 0.4))',
+            boxShadow: '0 0 80px rgba(168, 85, 247, 0.6), inset 0 0 60px rgba(255, 255, 255, 0.15)',
+          }}
+          animate={isPaused ? {} : {
+            scale: [1, 1.15, 1],
+            opacity: [0.8, 1, 0.8],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+
+        {/* Inner core */}
+        <motion.div
+          className="absolute w-32 h-32 rounded-full bg-gradient-to-br from-white/30 to-transparent blur-sm"
+          animate={isPaused ? {} : {
+            scale: [1, 1.2, 1],
+            opacity: [0.5, 0.8, 0.5],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 0.2,
+          }}
+        />
+      </div>
+
+      {/* Subtle ambient radial glow */}
       <motion.div
-        className="absolute inset-0 bg-gradient-radial from-purple-600/15 via-transparent to-transparent"
+        className="absolute inset-0"
+        style={{
+          background: 'radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.2), transparent 60%)',
+        }}
         animate={isPaused ? {} : {
-          opacity: [0.4, 0.6, 0.4],
-          scale: [1, 1.15, 1],
+          opacity: [0.6, 0.9, 0.6],
         }}
         transition={{
-          duration: 8,
+          duration: 10,
           repeat: Infinity,
-          ease: "easeInOut"
+          ease: "easeInOut",
         }}
       />
     </div>
@@ -264,27 +329,42 @@ const MountainView: React.FC<{ isPaused: boolean }> = () => (
   </div>
 );
 
-const Starfield: React.FC<{ isPaused: boolean }> = ({ isPaused }) => (
-  <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/30 to-purple-900/30">
-    {[...Array(50)].map((_, i) => (
-      <motion.div
-        key={i}
-        className="absolute w-1 h-1 bg-white rounded-full"
-        style={{
-          left: `${Math.random() * 100}%`,
-          top: `${Math.random() * 100}%`,
-        }}
-        animate={isPaused ? {} : {
-          opacity: [0.3, 1, 0.3]
-        }}
-        transition={{
-          duration: Math.random() * 3 + 2,
-          repeat: Infinity,
-          delay: Math.random() * 2
-        }}
-      />
-    ))}
-  </div>
-);
+const Starfield: React.FC<{ isPaused: boolean }> = ({ isPaused }) => {
+  // Generate stars with random starting positions and speeds
+  const stars = Array.from({ length: 50 }, (_, i) => ({
+    id: i,
+    startX: Math.random() * 100,
+    y: Math.random() * 100,
+    size: Math.random() * 1.5 + 0.5,
+    duration: Math.random() * 40 + 60, // 60-100 seconds for slow drift
+  }));
+
+  return (
+    <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/30 to-purple-900/30">
+      {stars.map((star) => (
+        <motion.div
+          key={star.id}
+          className="absolute bg-white rounded-full"
+          style={{
+            left: `${star.startX}%`,
+            top: `${star.y}%`,
+            width: `${star.size}px`,
+            height: `${star.size}px`,
+          }}
+          animate={isPaused ? {} : {
+            x: ['0vw', '100vw'],
+            opacity: [0.4, 0.6, 0.4]
+          }}
+          transition={{
+            duration: star.duration,
+            repeat: Infinity,
+            ease: "linear",
+            delay: Math.random() * 10
+          }}
+        />
+      ))}
+    </div>
+  );
+};
 
 export default FullscreenWaiting;

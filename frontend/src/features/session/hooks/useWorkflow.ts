@@ -26,6 +26,11 @@ export interface WorkflowStatusResponse {
     timestamp: string;
   };
   completion_timestamp?: string;        // When session was completed
+
+  // Timed waiting state
+  is_waiting?: boolean;                 // If currently in a timed wait period
+  wait_started_at?: string;             // When the wait started
+  wait_completed_at?: string;           // When the wait completed
 }
 
 export interface SessionTimer {
@@ -78,7 +83,11 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
             phases: data.phases || [],
             recent_messages: data.recent_messages || [],
             session_id: sessionId,
-            session_status: data.session_status || Session.status.SCHEDULED
+            session_status: data.session_status || Session.status.SCHEDULED,
+            // Timed waiting state
+            is_waiting: data.is_waiting,
+            wait_started_at: data.wait_started_at,
+            wait_completed_at: data.wait_completed_at
           };
 
           // Update session status state
@@ -245,6 +254,17 @@ export const useWorkflow = (ws: WebSocket | null, sessionId: string): WorkflowHo
               setIsPaused(timerData.is_paused);
             }
           }
+        } else if (data.type === 'wait_completed') {
+          // Timed waiting period completed
+          console.log('✅ WAIT COMPLETED:', data.metadata);
+          // Dispatch custom event for SessionDashboard to handle
+          window.dispatchEvent(new CustomEvent('wait_completed', {
+            detail: {
+              phase: data.metadata?.phase,
+              processing_minutes: data.metadata?.processing_minutes,
+              elapsed_seconds: data.metadata?.elapsed_seconds
+            }
+          }));
         }
       } catch (error) {
         console.error('Error parsing workflow update:', error);
