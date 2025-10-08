@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { GitBranch, Zap, Circle, ArrowRight, History, RotateCcw, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { PhaseIcon } from '../../../utils/iconMapper';
 import { SchemaPhaseDataForm } from '../../../components/SchemaPhaseDataForm';
+import { fetchWithAuth } from '../../../utils/auth-interceptor';
 
 interface VisitNode {
   id: string;
@@ -74,7 +75,7 @@ export const WorkflowExplorer: React.FC<WorkflowExplorerProps> = ({
 
     const fetchPath = async () => {
       try {
-        const response = await fetch(`/api/sessions/${sessionId}/path`);
+        const response = await fetchWithAuth(`/api/sessions/${sessionId}/path`);
         if (response.ok) {
           const data = await response.json();
           setSessionPath(data);
